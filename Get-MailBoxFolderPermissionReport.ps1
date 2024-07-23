@@ -1,4 +1,4 @@
-Function Get-CalendarFolderPermission {
+Function Get-Get-MailBoxFolderPermissionReport {
     <#
     .SYNOPSIS
         Retrieves calendar permissions for specified mailboxes or all mailboxes if none are specified.
