@@ -16,7 +16,7 @@ function Get-MailboxPermissionReport {
     $fullAccess = Get-MailboxPermission -Identity $mailbox.Identity | Where-Object { $_.User -ne "NT AUTHORITY\SELF" }
     $sendAs = Get-RecipientPermission -Identity $mailbox.Identity | Where-Object { $_.Trustee -ne "NT AUTHORITY\SELF" }
     
-    $sendOnBehalf = if (-not $mailbox.GrantSendOnBehalfTo) { "" } else { 
+    $sendOnBehalf = if ($null -eq $mailbox.GrantSendOnBehalfTo) { "" } else { 
         $mailbox.GrantSendOnBehalfTo | ForEach-Object { (Get-Mailbox $_).PrimarySMTPAddress } -join ","
     }
 
