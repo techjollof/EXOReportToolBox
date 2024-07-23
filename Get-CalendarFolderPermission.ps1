@@ -9,10 +9,16 @@ Function Get-CalendarFolderPermission {
         format with details of mailbox name, email, folder name, user, and permissions.
     
     .PARAMETER MailboxTypes
-        Specifies the types of mailboxes to include. You can specify multiple values separated by commas, UserMailbox, SharedMailbox
+        Specifies the types of mailboxes to include. You can specify multiple values separated by commas, such as UserMailbox, SharedMailbox.
     
     .PARAMETER SpecificMailboxes
-        Specifies individual mailboxes to include.
+        Specifies individual mailboxes to include. You can specify multiple mailbox identifiers separated by commas.
+    
+    .PARAMETER FolderName
+        Specifies the name of the folder for which permissions are being retrieved. The default value is "Calendar".
+    
+    .PARAMETER ResultSize
+        Specifies the number of results to return. The default value is "Unlimited".
     
     .EXAMPLE
         .\Get-MailboxCalendarPermissions.ps1 -MailboxTypes "UserMailbox"
@@ -33,7 +39,10 @@ Function Get-CalendarFolderPermission {
         [array]
         $SpecificMailboxes,
 
-        
+        [Parameter(Mandatory)]
+        [string]
+        $FolderName = "Calendar",
+
         [Parameter()]
         $ResultSize = "Unlimited"
     )
@@ -48,7 +57,7 @@ Function Get-CalendarFolderPermission {
             } elseif ($MailboxTypes) {
                 Get-Mailbox -RecipientTypeDetails $MailboxTypes -ResultSize $ResultSize
             } else {
-                Get-Mailbox -ResultSize -ResultSize $ResultSize
+                Get-Mailbox -ResultSize $ResultSize
             }
         
         $allMailboxes = $allMailboxes | Select-Object -Property Displayname,PrimarySMTPAddress
@@ -62,7 +71,7 @@ Function Get-CalendarFolderPermission {
             Write-Progress -Activity "Processing $($_.Displayname)" -Status "$i out of $totalMailboxes completed"
             
             # Get calendar folder permissions for the mailbox
-            $folderPerms = Get-MailboxFolderPermission -Identity "$($_.PrimarySMTPAddress):\Calendar"
+            $folderPerms = Get-MailboxFolderPermission -Identity "$($_.PrimarySMTPAddress):\$FolderName"
             
             # Iterate over each permission entry
             $folderPerms | ForEach-Object {
@@ -70,14 +79,13 @@ Function Get-CalendarFolderPermission {
                 $Result += [PSCustomObject]@{
                     MailboxName = $mailbox.DisplayName
                     MailboxEmail = $mailbox.PrimarySMTPAddress
-                    FolderName = "Calendar"
+                    FolderName = $FolderName
                     User = $_.User
                     Permissions = $_.AccessRights -join ","
                 }
             }
             $i++
         }
-    
         $Result
     }
 }
