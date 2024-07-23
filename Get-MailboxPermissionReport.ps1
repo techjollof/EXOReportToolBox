@@ -3,23 +3,24 @@ function Get-MailboxPermissionReport {
     param (
         [Parameter(Mandatory = $true)]
         [string]$MailboxAddress,
-
         [Parameter()]
         [switch]$ExpandedReport
     )
 
     $mailbox = Get-Mailbox -Identity $MailboxAddress -ErrorAction SilentlyContinue
-
-    if ($null -eq $mailbox) {
+    if (-not $mailbox) {
         Write-Error "Invalid mailbox address provided: $MailboxAddress. Please try again."
         return
     }
 
     $fullAccess = Get-MailboxPermission -Identity $mailbox.Identity | Where-Object { $_.User -ne "NT AUTHORITY\SELF" }
     $sendAs = Get-RecipientPermission -Identity $mailbox.Identity | Where-Object { $_.Trustee -ne "NT AUTHORITY\SELF" }
-    $sendOnBehalf = if ($null -eq $mailbox.GrantSendOnBehalfTo) {""} else { $mailbox.GrantSendOnBehalfTo | ForEach-Object { (Get-Mailbox $_).PrimarySMTPAddress } -join ","}
+    
+    $sendOnBehalf = if (-not $mailbox.GrantSendOnBehalfTo) { "" } else { 
+        $mailbox.GrantSendOnBehalfTo | ForEach-Object { (Get-Mailbox $_).PrimarySMTPAddress } -join ","
+    }
 
-    $permreport = [PSCustomObject]@{
+    $permReport = [PSCustomObject]@{
         DisplayName   = $mailbox.DisplayName
         EmailAddress  = $mailbox.PrimarySMTPAddress
         FullAccess    = $fullAccess.User -join ","
@@ -27,5 +28,5 @@ function Get-MailboxPermissionReport {
         SendOnBehalf  = $sendOnBehalf
     }
 
-    return $permreport
+    return $permReport
 }
