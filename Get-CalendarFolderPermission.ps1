@@ -1,4 +1,4 @@
-Get-CalendarFolderPermission {
+Function Get-CalendarFolderPermission {
     <#
     .SYNOPSIS
         Retrieves calendar permissions for specified mailboxes or all mailboxes if none are specified.
@@ -31,7 +31,11 @@ Get-CalendarFolderPermission {
     
         [Parameter(ParameterSetName="SpecificMailboxes")]
         [array]
-        $SpecificMailboxes
+        $SpecificMailboxes,
+
+        
+        [Parameter()]
+        $ResultSize = "Unlimited"
     )
     
     process {
@@ -42,9 +46,9 @@ Get-CalendarFolderPermission {
         $allMailboxes = if ($SpecificMailboxes) {
             $SpecificMailboxes | ForEach-Object { Get-Mailbox $_ }
             } elseif ($MailboxTypes) {
-                Get-Mailbox -RecipientTypeDetails $MailboxTypes -ResultSize Unlimited
+                Get-Mailbox -RecipientTypeDetails $MailboxTypes -ResultSize $ResultSize
             } else {
-                Get-Mailbox -ResultSize Unlimited
+                Get-Mailbox -ResultSize -ResultSize $ResultSize
             }
         
         $allMailboxes = $allMailboxes | Select-Object -Property Displayname,PrimarySMTPAddress
@@ -77,5 +81,3 @@ Get-CalendarFolderPermission {
         $Result
     }
 }
-
-
