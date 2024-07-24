@@ -106,7 +106,7 @@ function Get-MailboxPermissionReport {
                     ReadManage            = ($fullAccess | Select-Object -ExpandProperty User) -join ";"
                     ReadManagePermissions = ($fullAccess | Select-Object -ExpandProperty AccessRights) -join ";"
                     SendAs                = ($sendAs | Select-Object -ExpandProperty Trustee) -join ";"
-                    SendOnBehalf          = ($sendOnBehalf) -join ";"
+                    SendOnBehalf          = ($sendOnBehalf.PrimarySMTPAddress) -join ";"
                 }
             }
         }
