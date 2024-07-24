@@ -28,5 +28,5 @@ function ProcessGroupMembers {
             }
         }
     
-        return $members
+        $members
     }
