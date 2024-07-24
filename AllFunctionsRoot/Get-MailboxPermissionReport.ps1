@@ -1,18 +1,37 @@
 function Get-MailboxPermissionReport {
+    <#
+    .SYNOPSIS
+        Generates a report of mailbox permissions.
+    .DESCRIPTION
+        The Get-MailboxPermissionReport function retrieves and displays permissions for specified mailboxes or types of mailboxes. It can generate detailed reports including user or trustee information and access rights.
+    .NOTES
+        This function is designed for use in environments with Exchange Online.
+    .LINK
+        https://docs.microsoft.com/en-us/powershell/module/exchange/get-mailboxpermission
+    .EXAMPLE
+        Get-MailboxPermissionReport -MailboxAddress "user1@example.com", "user2@example.com"
+        Retrieves and displays permissions for the specified mailboxes.
+    .EXAMPLE
+        Get-MailboxPermissionReport -MailboxTypes "UserMailbox"
+        Retrieves and displays permissions for all user mailboxes.
+    #>
+    
     [CmdletBinding()]
     param (
-        [Parameter(ParameterSetName = "SpecificMailboxes")]
+        [Parameter(ParameterSetName = "SpecificMailboxes", HelpMessage = "Specify one or more mailbox addresses.")]
         [string[]]
         $MailboxAddress,
 
-        [Parameter(ParameterSetName = "Bulk")]
+        [Parameter(ParameterSetName = "Bulk", HelpMessage = "Specify the type of mailboxes to include in the report.")]
         [ValidateSet("UserMailbox", "SharedMailbox", "RoomMailbox", "All")]
         $MailboxTypes = "All",
 
-        [Parameter()]
+        [Parameter(HelpMessage = "Include detailed permission information in the report.")]
         [switch]
         $ExpandedReport
     )
+
+
 
     $permReport = @()
 
