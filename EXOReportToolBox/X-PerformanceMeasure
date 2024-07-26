@@ -1,0 +1,29 @@
+
+$ErrorActionPreference = "SilentlyContinue"
+Write-Verbose -Message "Pipline"
+
+Write-Verbose -Message "Using for loop"
+
+$code1 =  {Get-DistributionGroup -ResultSize Unlimited -WarningAction SilentlyContinue  | Get-DistributionGroupMember -ResultSize Unlimited }
+$Code2 = {
+    $groups = Get-DistributionGroup -ResultSize Unlimited  -WarningAction SilentlyContinue
+    foreach ($group in $groups) {
+        Get-DistributionGroupMember -Identity $group -ResultSize Unlimited
+    }
+}
+
+Measure-PSMDCommand -Iterations 1 -TestSet @{
+    Code1 = $code1
+    Code2 = $code2
+} 
+
+
+
+Measure-Command  {Get-DistributionGroup -ResultSize Unlimited -WarningAction SilentlyContinue  | Get-DistributionGroupMember -ResultSize Unlimited }
+Measure-Command {
+    $groups = Get-DistributionGroup -ResultSize Unlimited  -WarningAction SilentlyContinue
+    foreach ($group in $groups) {
+        Get-DistributionGroupMember -Identity $group -ResultSize Unlimited
+    }
+}
+
