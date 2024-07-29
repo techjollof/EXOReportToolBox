@@ -2,20 +2,36 @@ function Get-MailboxPermissionReport {
     <#
     .SYNOPSIS
         Generates a report of mailbox permissions.
+
     .DESCRIPTION
-        The Get-MailboxPermissionReport function retrieves and displays permissions for specified mailboxes or types of mailboxes. It can generate detailed reports including user or trustee information and access rights.
+        The Get-MailboxPermissionReport function retrieves and displays permissions for specified mailboxes or types of mailboxes. It can generate detailed reports including user or trustee information and access rights. This function is especially useful for administrators who need to audit or review access permissions within an Exchange Online environment.
+
     .NOTES
         This function is designed for use in environments with Exchange Online.
-    .LINK
-        https://docs.microsoft.com/en-us/powershell/module/exchange/get-mailboxpermission
+        Use the -MailboxAddress parameter to specify individual mailboxes or -MailboxTypes to specify categories of mailboxes like User, Shared, or Room mailboxes.
+        The report can be exported to a specified path using the -ReportPath parameter.
+
+    .PARAMETER MailboxAddress
+        Specify one or more mailbox addresses for which to retrieve permission details. This is useful for checking permissions on specific mailboxes.
+
+    .PARAMETER MailboxTypes
+        Specify the type of mailboxes to include in the report. Options include "UserMailbox", "SharedMailbox", "RoomMailbox", and "All". The default value is "All".
+
+    .PARAMETER ReportPath
+        Specify the file path where the report will be saved. If not provided, the report will only be displayed on the console.
+
+    .PARAMETER ExpandedReport
+        Include detailed permission information in the report. This includes specifics about the types of access granted to users or trustees.
     .EXAMPLE
         Get-MailboxPermissionReport -MailboxAddress "user1@example.com", "user2@example.com"
         Retrieves and displays permissions for the specified mailboxes.
+
     .EXAMPLE
         Get-MailboxPermissionReport -MailboxTypes "UserMailbox"
         Retrieves and displays permissions for all user mailboxes.
+
     #>
-    
+
     [CmdletBinding()]
     param (
         [Parameter(ParameterSetName = "SpecificMailboxes", HelpMessage = "Specify one or more mailbox addresses.")]
@@ -26,14 +42,18 @@ function Get-MailboxPermissionReport {
         [ValidateSet("UserMailbox", "SharedMailbox", "RoomMailbox", "All")]
         $MailboxTypes = "All",
 
+        [Parameter(Mandatory =$true, HelpMessage = "Specify the file path to save the report.")]
+        [string]
+        $ReportPath,
+
         [Parameter(HelpMessage = "Include detailed permission information in the report.")]
         [switch]
         $ExpandedReport
     )
 
 
-
     $permReport = @()
+    . "$PSScriptRoot\Export-ReportCsv.ps1" 
 
     function ProcessReport {
         param (
@@ -131,5 +151,7 @@ function Get-MailboxPermissionReport {
         }
     }
 
-    $permReport #| Export-Csv "./Reports/$(Get-Date -Format 'yyyyMMdd_HH_MM_ss').csv" -NoTypeInformation
+    Export-ReportCsv -ReportPath $ReportPath -ReportData $permReport
+
+    #$permReport | Export-Csv ".\$ReportPath$(Get-Date -Format 'yyyyMMdd_HH_MM_ss').csv" -NoTypeInformation
 }

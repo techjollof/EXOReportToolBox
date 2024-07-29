@@ -18,8 +18,8 @@ Function Export-ReportCsv {
             @{ Name = "John Doe"; Age = 30; Position = "Developer" },
             @{ Name = "Jane Smith"; Age = 25; Position = "Designer" }
         )
-        $filePath = "/path/to/reports/EmployeeReport.csv"
-        Export-ReportCsv -FilePath $filePath -ReportData $reportData
+        $ReportPath = "/path/to/reports/EmployeeReport.csv"
+        Export-ReportCsv -FilePath $ReportPath -ReportData $reportData
     
         This example exports the report data to a CSV file named "EmployeeReport_20240723_153045.csv" in the specified directory.
     
@@ -28,40 +28,46 @@ Function Export-ReportCsv {
             @{ Name = "Alice Johnson"; Age = 35; Position = "Manager" },
             @{ Name = "Bob Brown"; Age = 28; Position = "Analyst" }
         )
-        $filePath = "C:\Reports\StaffReport.csv"
-        Export-ReportCsv -FilePath $filePath -ReportData $reportData
+        $ReportPath = "C:\Reports\StaffReport.csv"
+        Export-ReportCsv -FilePath $ReportPath -ReportData $reportData
     
         This example exports the report data to a CSV file named "StaffReport_20240723_153045.csv" in the specified directory.
     #>
-    
-    function Export-ReportCsv {
-            
-        param (
-            [Parameter(Mandatory=$true)]
-            [string] $FilePath,
-    
-            [Parameter(Mandatory=$true)]
-            [array] $ReportData
-        )
-    
-        # Get current date and time
-        $currentDateTime = Get-Date -Format "yyyy_MM_dd_HH_mm"
-    
-        # Split the file path to insert the date and time
-        $directory = [System.IO.Path]::GetDirectoryName($FilePath)
-        $filename = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
-        $extension = If($null -eq [System.IO.Path]::GetExtension($FilePath)) { ".csv" } Else { [System.IO.Path]::GetExtension($FilePath) }  
-    
-        # Construct the new file path
-        $newFilePath = [System.IO.Path]::Combine($directory, "${filename}_${currentDateTime}${extension}")
-    
-        # Ensure the directory exists (cross-platform way)
-        if (-not (Test-Path -Path $directory)) {
-            New-Item -Path $directory -ItemType Directory -Force
+    param (
+        [Parameter(Mandatory=$true)]
+        [string] $ReportPath,
+
+        [Parameter(Mandatory=$true)]
+        [hashtable] $ReportData
+    )
+
+    # Get current date and time
+    $currentDateTime = Get-Date -Format "yyyy_MM_dd_HH_mm"
+
+    # Split the file path to insert the date and time
+    $directory = if($null -eq [System.IO.Path]::GetDirectoryName($ReportPath)){
+        [System.IO.Path]::GetDirectoryName($ReportPath)
+    }else{
+        if($IsWindows) {
+            [System.IO.Path]::Combine($HOME, "Downloads")
+        } else {
+            [System.IO.Path]::Combine($HOME, "Downloads")
         }
-    
-        # Export to CSV
-        Export-Csv -Path $newFilePath -InputObject $ReportData -NoTypeInformation
-            
     }
+    $filename = [System.IO.Path]::GetFileNameWithoutExtension($ReportPath)
+    $extension = If($null -eq [System.IO.Path]::GetExtension($ReportPath)) { ".csv" } Else { [System.IO.Path]::GetExtension($ReportPath) }  
+
+    # Construct the new file path
+    $newFilePath = [System.IO.Path]::Combine($directory, "${filename}_${currentDateTime}${extension}")
+
+    # Ensure the directory exists (cross-platform way)
+    if (-not (Test-Path -Path $directory)) {
+        New-Item -Path $directory -ItemType Directory -Force
+    }
+
+    # Export to CSV
+    Export-Csv -Path $newFilePath -InputObject $ReportData -NoTypeInformation
+    #Export-csv -
+
+    
 }
