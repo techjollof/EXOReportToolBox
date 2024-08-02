@@ -1,4 +1,4 @@
-function Grant-MailboxFolderPermission {
+function Edit-MailboxFolderPermission {
     [CmdletBinding()]
     param (
         # Delagator
@@ -16,22 +16,25 @@ function Grant-MailboxFolderPermission {
         [string[]]
         $FolderAccessRights,
 
-
         # Specifiy the folder to delegate
         [Parameter()]
         [string[]]
         $FolderToDelagete,
 
+        # Specify the folder exlude
+        [Parameter()]
+        [string[]]
+        $FolderToExclude,
 
         # Assigned  permission to all subfolders
         [Parameter()]
         [switch]
         $GrantAccessToAllSubFolders,
 
-        # Specify the folder exlude
+        # Parameter help description
         [Parameter()]
-        [string[]]
-        $FolderToExclude
+        [ValidateSet("AddPermission","RemovePermission")]
+        $PermssionAction = "AddPermission",
     )
 
     # handle error message
@@ -69,14 +72,23 @@ function Grant-MailboxFolderPermission {
             # Parameter help description
             [Parameter(Mandatory)]
             [string]
-            $FolderAccessRights
+            $FolderAccessRights,
+            
+            # Parameter help description
+            [Parameter()]
+            [ValidateSet("AddPermission","RemovePermission")]
+            $PermssionAction = "AddPermission"
         )
 
-        Add-MailboxFolderPermission -Identity $FolderID -User $DelagateMailbox -AccessRights $FolderAccessRights
+        if($PermssionAction -eq "RemovePermission"){
+            Remove-MailboxFolderPermission -Identity $FolderID -User $DelagateMailbox 
+        }else{
+            Add-MailboxFolderPermission -Identity $FolderID -User $DelagateMailbox -AccessRights $FolderAccessRights
+        }
         
     }
 
-
+    
     $FolderToDelagete = "Inbox, CreateSubfolders,Top3\EXO,Top3\SPO\AzureAD\AzureAD, Delete\AllItems, Delete/OwnedItems, EditAllItems".Split(",").Trim()
     $ConvertFolderPath =@()
     $FolderTypeSelection = "User Created", "Inbox", "SentItems", "DeletedItems", "JunkEmail", "Archive", "Drafts", "Notes", "Outbox"
@@ -90,15 +102,12 @@ function Grant-MailboxFolderPermission {
         if ($folder -notin $filteredFolder.FolderPath) {
             Write-Output "$folder specified does not exist on the mailox"
         }else {
-            if($GrantAccessToAllSubFolders){
-                $Subfolders = ($filteredFolder.FolderPath).Where({ $_.StartsWith("\Inbox") })
-                foreach ($fodler in $Subfolders) {
+            if($GrantAccessToASubFolders){
+                $Subfolders = ($filteredFolder.FolderPath).Where({ $_.StartsWith($fodler)  })
+                foreach ($Subfolder in $Subfolders) {
                     Edit-FolderPermission -FolderID -DelagateMailbox $DelagatorMailbox -AccessRights $FolderAccessRights
                 }
             }else{
-                $Subfolders = ($filteredFolder.FolderPath).Where({ $_.StartsWith($folder) })
-                Write-Output "Primary - $folder"
-                $Subfolders
                 Edit-FolderPermission -FolderID -DelagateMailbox $DelagatorMailbox -AccessRights $FolderAccessRights
             }
         }
@@ -130,23 +139,3 @@ $mbfld = Get-MailboxFolderStatistics AddresBook@ithero.work.gd
 
 
 
-function prompt
-{
-	$history = Get-History -ErrorAction Ignore
-	if ($history.Count -eq 0) {
-		$history = 0
-	}else{
-		$history = $history[-1].Duration.TotalMilliseconds
-	}
-	$segments = $executionContext.SessionState.Path.CurrentLocation.Path -split "\\"
-	if ($segments.Count -lt 2) { Write-Host "$($executionContext.SessionState.Path.CurrentLocation.Path)" -NoNewline }
-	else {
-		
-		Write-Host "PS : \$($segments[-1]) " -NoNewline }
-		Write-Host "[ $($history)]"-ForegroundColor DarkMagenta -NoNewline
-		
-	
-	" > "
-}
-
-prompt
