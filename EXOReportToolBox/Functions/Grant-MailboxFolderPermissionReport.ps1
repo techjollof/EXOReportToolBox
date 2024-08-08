@@ -34,7 +34,7 @@ function Edit-MailboxFolderPermission {
         # Parameter help description
         [Parameter()]
         [ValidateSet("AddPermission","RemovePermission")]
-        $PermssionAction = "AddPermission",
+        $PermssionAction = "AddPermission"
     )
 
     # handle error message
@@ -116,8 +116,6 @@ function Edit-MailboxFolderPermission {
 
 }
 
-
-TODO:
 
 <#
 

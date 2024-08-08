@@ -1,4 +1,4 @@
-Function Get-Get-MailBoxFolderPermissionReport {
+Function Get-MailBoxFolderPermissionReport {
     <#
     .SYNOPSIS
         Retrieves calendar permissions for specified mailboxes or all mailboxes if none are specified.
@@ -39,7 +39,7 @@ Function Get-Get-MailBoxFolderPermissionReport {
         [array]
         $SpecificMailboxes,
 
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory = $true)]
         [string]
         $FolderName = "Calendar",
 
@@ -68,8 +68,7 @@ Function Get-Get-MailBoxFolderPermissionReport {
         # Iterate over each mailbox
         $allMailboxes | ForEach-Object {
             $mailbox = $_
-            Write-Progress -Activity "Processing $($_.Displayname)" -Status "$i out of $totalMailboxes completed"
-            
+            #Write-Progress -Activity "Processing $($_.Displayname)" -Status "$i out of $totalMailboxes completed"
             # Get calendar folder permissions for the mailbox
             $folderPerms = Get-MailboxFolderPermission -Identity "$($_.PrimarySMTPAddress):\$FolderName"
             

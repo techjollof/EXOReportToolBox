@@ -33,12 +33,13 @@ Function Export-ReportCsv {
     
         This example exports the report data to a CSV file named "StaffReport_20240723_153045.csv" in the specified directory.
     #>
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
         [string] $ReportPath,
 
         [Parameter(Mandatory=$true)]
-        [hashtable] $ReportData
+        $ReportData
     )
 
     # Get current date and time
@@ -55,7 +56,7 @@ Function Export-ReportCsv {
         }
     }
     $filename = [System.IO.Path]::GetFileNameWithoutExtension($ReportPath)
-    $extension = If($null -eq [System.IO.Path]::GetExtension($ReportPath)) { ".csv" } Else { [System.IO.Path]::GetExtension($ReportPath) }  
+    $extension = If($false -eq [System.IO.Path]::GetExtension($ReportPath)) { ".csv" } Else { [System.IO.Path]::GetExtension($ReportPath) }  
 
     # Construct the new file path
     $newFilePath = [System.IO.Path]::Combine($directory, "${filename}_${currentDateTime}${extension}")
@@ -66,7 +67,7 @@ Function Export-ReportCsv {
     }
 
     # Export to CSV
-    Export-Csv -Path $newFilePath -InputObject $ReportData -NoTypeInformation
+    $ReportData | Export-Csv  -Path $newFilePath -NoTypeInformation
     #Export-csv -
 
     

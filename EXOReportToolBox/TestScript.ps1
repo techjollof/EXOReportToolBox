@@ -203,3 +203,249 @@ Get-AllGroupMembershipReport {
 }
 
 
+
+
+$Test1 = {
+    Get-DistributionGroup -ResultSize Unlimited  | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0}
+}
+
+$test2 = {
+    $gp = Get-DistributionGroup -ResultSize Unlimited  
+    $gp | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0}
+}
+
+Measure-PSMDCommand -Iterations 10 -TestSet @{
+    Test1 = $Test1
+    Test2 = $test2
+}
+
+Measure-Command {
+    $ug.AcceptMessagesOnlyFrom | Get-Recipient
+}
+
+Measure-Command {
+    foreach ($User in $ug.AcceptMessagesOnlyFrom) {
+        Get-Recipient $User
+    }
+}
+
+
+$NewTest1 =  {
+    $ug.AcceptMessagesOnlyFrom | Get-Recipient
+}
+
+$NewTest2 =  {
+    foreach ($User in $ug.AcceptMessagesOnlyFrom) {
+        Get-Recipient $User
+    }
+}
+
+
+Measure-PSMDCommand -Iterations 10 -TestSet @{
+    NewTest1 =  $NewTest1
+    NewTest2 = $NewTest2
+}
+
+
+
+
+<#
+.SYNOPSIS
+    Short description
+.DESCRIPTION
+    Long description
+.EXAMPLE
+    Example of how to use this cmdlet
+.EXAMPLE
+    Another example of how to use this cmdlet
+#>
+function Get-GroupDeliveryManagementReport {
+    [CmdletBinding()]
+    [OutputType([type])]
+    param(
+        # group options
+        [Parameter()]
+        [ValidateSet("MailDistributionGroup", "MailSecurityGroup","M365Groups","DynamicGroups","AllDLs")]
+        $GroupType = "AllDLs",
+
+        # Export file path
+        [Parameter(Mandatory =$true, HelpMessage = "Specify the file path to save the report.")]
+        [string]
+        $ReportPath,
+
+        # Size
+        [Parameter()]
+        [string]
+        $ResultSize ="Unlimited"
+    )
+
+    
+    process {
+
+        #Export function
+        . "$PSScriptRoot\Export-ReportCsv.ps1" 
+            
+        $Result = @()
+        $getGroup = switch ($GroupType) {
+            "MailDistributionGroup" { Get-DistributionGroup -RecipientTypeDetails MailUniversalDistributionGroup -ResultSize $ResultSize | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0} }
+            "MailSecurityGroup" {Get-DistributionGroup -RecipientTypeDetails MailUniversalSecurityGroup -ResultSize $ResultSize  | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0}}
+            "M365Groups" {Get-UnifiedGroup -ResultSize $ResultSize  | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0}}
+            "DynamicGroups" {Get-DynamicDistributionGroup -ResultSize $ResultSize   | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0}}
+            Default {Get-DistributionGroup -ResultSize $ResultSize  | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0}}
+        }
+        
+
+        $getGroup | ForEach-Object {
+            $dl = $_
+            $users = $dl.AcceptMessagesOnlyFrom | ForEach-Object {
+                Get-Recipient -ResultSize Unlimited | Select-Object Displ*, Prim*
+            }
+
+            $Result +=[PSCustomObject]@{
+
+                GroupName = $dl.DisplayName
+                GroupEmail = $dl.PrimarySMTPAddress
+                UserName = $users.DisplayName -join ","
+                UserEmail = $Users.PrimarySMTPAddress -join ","
+            }
+        } 
+
+        Export-ReportCsv -ReportData $Result -ReportPath $ReportPath        
+    }
+}
+
+
+
+
+<#
+.SYNOPSIS
+    Retrieves delivery management details for specified group types and exports a report.
+.DESCRIPTION
+    This cmdlet retrieves details about groups (based on specified types) that accept messages only from certain users,
+    compiles this information into a report, and exports it to a CSV file.
+.PARAMETER GroupType
+    Specifies the type of group to retrieve. Valid options are:
+    - MailDistributionGroup: Retrieves mail distribution groups.
+    - MailSecurityGroup: Retrieves mail security groups.
+    - M365Groups: Retrieves Microsoft 365 groups.
+    - DynamicGroups: Retrieves dynamic distribution groups.
+    - AllDLs: Retrieves all distribution lists (default).
+.PARAMETER ReportPath
+Specifies the file path to save the report. This parameter is mandatory. If the file path is not fully, for example ( "\Reports\GroupReport") instead ( "C:\Reports\GroupReport.csv"), the file will b exported to Downlads by default with file as GroupReport_Date_time.csv.
+.PARAMETER ResultSize
+    Specifies the maximum number of results to return. Use a positive integer to limit the results or 'Unlimited' for no limit. Default is 'Unlimited'.
+
+.PARAMETER ExpandedReport
+        Include detailed permission information in the report. This includes specifics about the types of access granted to users or trustees.
+
+.EXAMPLE
+    Get-GroupDeliveryManagementReport -GroupType MailDistributionGroup -ReportPath "C:\Reports\GroupReport.csv"
+    Retrieves delivery management details for all mail distribution groups and exports the report to "C:\Reports\GroupReport.csv".
+.EXAMPLE
+    Get-GroupDeliveryManagementReport -GroupType M365Groups -ResultSize 100 -ReportPath "C:\Reports\M365GroupReport.csv"
+    Retrieves delivery management details for Microsoft 365 groups, limiting the result size to 100, and exports the report to "C:\Reports\M365GroupReport.csv".
+#>
+function Get-GroupDeliveryManagementReport {
+    [CmdletBinding()]
+    [OutputType([System.Management.Automation.PSCustomObject])]
+    param(
+        # Specifies the type of group to retrieve (default: AllDLs).
+        [Parameter(HelpMessage = "Specifies the type of group to retrieve. Valid options are 'MailDistributionGroup', 'MailSecurityGroup', 'M365Groups', 'DynamicGroups', 'AllDLs'.")]
+        [ValidateSet("MailDistributionGroup", "MailSecurityGroup", "M365Groups", "DynamicGroups", "AllDLs")]
+        [string]
+        $GroupType = "AllDLs",
+
+        # Specifies the file path to save the report (mandatory).
+        [Parameter(Mandatory = $true, HelpMessage = "Specify the file path to save the report.")]
+        [string]
+        $ReportPath,
+
+        # Specifies the maximum number of results to return (default: Unlimited).
+        [Parameter(HelpMessage = "Specifies the maximum number of results to return. Use a positive integer to limit the results or 'Unlimited' for no limit.")]
+        [ValidateScript({
+                if ($_ -eq 'Unlimited' -or ($_ -match '^\d+$' -and [int]$_ -gt 0)) {
+                    $true
+                }
+                else {
+                    throw "ResultSize must be a positive integer or 'Unlimited'"
+                }
+            })]
+        [object]
+        $ResultSize = 'Unlimited',
+
+        [Parameter(HelpMessage = "Include detailed permission information in the report.")]
+        [switch]
+        $ExpandedReport
+    )
+
+    process {
+        # Import the Export-ReportCsv function .
+        . "$PSScriptRoot\Export-ReportCsv.ps1" 
+
+        # Ensure ResultSize is valid
+        # Convert ResultSize to an integer if it is not 'Unlimited'
+        if ($ResultSize -ne 'Unlimited') {
+            $ResultSize = [int]$ResultSize
+        }
+        
+        $reportData = @()
+
+        function ProcessReport {
+            param (
+                [Parameter(Mandatory = $true)]
+                [object]$UsersInfo,
+        
+                [Parameter(Mandatory = $true)]
+                [object]$Group
+
+            )
+
+            $report = @()
+            
+            if ($ExpandedReport) {
+                foreach ($user in $UsersInfo) {
+                    $report += [PSCustomObject]@{
+                        GroupName  = $group.DisplayName
+                        GroupEmail = $group.PrimarySMTPAddress
+                        UserName   = ($User.DisplayName) 
+                        UserEmail  = ($User.PrimarySMTPAddress) 
+                    }
+                }
+                $report
+            }
+            else {
+                [PSCustomObject]@{
+                    GroupName  = $group.DisplayName
+                    GroupEmail = $group.PrimarySMTPAddress
+                    UserName   = ($UsersInfo.DisplayName) -join ","
+                    UserEmail  = ($UsersInfo.PrimarySMTPAddress) -join ","
+                }
+            }
+        }
+        
+
+        $groups = switch ($GroupType) {
+            "MailDistributionGroup" { Get-DistributionGroup -RecipientTypeDetails MailUniversalDistributionGroup -ResultSize $ResultSize }
+            "MailSecurityGroup" { Get-DistributionGroup -RecipientTypeDetails MailUniversalSecurityGroup -ResultSize $ResultSize }
+            "M365Groups" { Get-UnifiedGroup -ResultSize $ResultSize }
+            "DynamicGroups" { Get-DynamicDistributionGroup -ResultSize $ResultSize }
+            Default { Get-DistributionGroup -ResultSize $ResultSize }
+        }
+
+        # Check if $groups is null or empty
+        if (-not $groups) {
+            Write-Error "No groups found for the specified GroupType: $GroupType"
+            return
+        }
+
+        $filteredGroups = $groups | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0 }
+
+        foreach ($group in $filteredGroups) {
+            $userInfo = $group.AcceptMessagesOnlyFrom | Get-Recipient -ErrorAction SilentlyContinue
+            $reportData += ProcessReport -UsersInfo $userInfo -Group $group
+        }
+
+        Export-ReportCsv -ReportData $reportData -ReportPath $ReportPath
+    }
+
+}
