@@ -27,7 +27,6 @@ Specifies the file path to save the report. This parameter is mandatory. If the 
     Retrieves delivery management details for Microsoft 365 groups, limiting the result size to 100, and exports the report to "C:\Reports\M365GroupReport.csv".
 #>
 
-
 function Get-GroupDeliveryManagementReport {
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -43,13 +42,13 @@ function Get-GroupDeliveryManagementReport {
 
         [Parameter(HelpMessage = "Specifies the maximum number of results to return. Use a positive integer to limit the results or 'Unlimited' for no limit.")]
         [ValidateScript({
-            if ($_ -eq 'Unlimited' -or ($_ -match '^\d+$' -and [int]$_ -gt 0)) {
-                $true
-            }
-            else {
-                throw "ResultSize must be a positive integer or 'Unlimited'"
-            }
-        })]
+                if ($_ -eq 'Unlimited' -or ($_ -match '^\d+$' -and [int]$_ -gt 0)) {
+                    $true
+                }
+                else {
+                    throw "ResultSize must be a positive integer or 'Unlimited'"
+                }
+            })]
         [object]
         $ResultSize = 'Unlimited',
 
@@ -59,10 +58,8 @@ function Get-GroupDeliveryManagementReport {
     )
 
     begin {
-        # Import the Export-ReportCsv function
         . "$PSScriptRoot\Export-ReportCsv.ps1"
         
-        # Validate and prepare ResultSize
         if ($ResultSize -ne 'Unlimited') {
             $ResultSize = [int]$ResultSize
         }
@@ -86,25 +83,42 @@ function Get-GroupDeliveryManagementReport {
 
         $filteredGroups = $groups | Where-Object { $_.AcceptMessagesOnlyFrom.count -ne 0 }
 
-        foreach ($group in $filteredGroups) {
-            $userInfo = $group.AcceptMessagesOnlyFrom | Get-Recipient -ErrorAction SilentlyContinue
-
-            $reportData += [PSCustomObject]@{
-                GroupName  = $group.DisplayName
-                GroupEmail = $group.PrimarySMTPAddress
-                UserName   = $userInfo.DisplayName -join ","
-                UserEmail  = $userInfo.PrimarySMTPAddress -join ","
-            }
+        function ProcessReport {
+            param (
+                [Parameter(Mandatory = $true)]
+                [object]$UsersInfo,
+                
+                [Parameter(Mandatory = $true)]
+                [object]$Group
+            )
 
             if ($ExpandedReport) {
-                foreach ($user in $userInfo) {
-                    $reportData += [PSCustomObject]@{
-                        GroupName  = $group.DisplayName
-                        GroupEmail = $group.PrimarySMTPAddress
-                        UserName   = $user.DisplayName
-                        UserEmail  = $user.PrimarySMTPAddress
+                $report = $UsersInfo | ForEach-Object {
+                    [PSCustomObject]@{
+                        GroupName  = $Group.DisplayName
+                        GroupEmail = $Group.PrimarySMTPAddress
+                        UserName   = $_.DisplayName
+                        UserEmail  = $_.PrimarySMTPAddress
                     }
                 }
+            } else {
+                $report = [PSCustomObject]@{
+                    GroupName  = $Group.DisplayName
+                    GroupEmail = $Group.PrimarySMTPAddress
+                    UserName   = ($UsersInfo.DisplayName) -join ","
+                    UserEmail  = ($UsersInfo.PrimarySMTPAddress) -join ","
+                }
+            }
+            return $report
+        }
+
+        foreach ($group in $filteredGroups) {
+            try {
+                $userInfo = $group.AcceptMessagesOnlyFrom | Get-Recipient -ErrorAction Stop
+                $reportData += ProcessReport -UsersInfo $userInfo -Group $group
+            } catch {
+                Write-Warning "Failed to retrieve recipient information for group $($group.DisplayName): $_"
+                continue
             }
         }
     }
