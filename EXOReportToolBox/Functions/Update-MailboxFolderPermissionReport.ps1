@@ -22,7 +22,7 @@ function Update-MailboxFolderPermissionReport {
     .PARAMETER ManageAllSubFolders
         If specified, the permissions will be applied to all subfolders of the target folder.
 
-    .PARAMETER FolderToExclude
+    .PARAMETER ExcludeFolders
         A list of folders to exclude from the permission changes. This parameter can be used in conjunction with the `ManageAllSubFolders` parameter.
 
     .PARAMETER UpdatePermission
@@ -75,14 +75,15 @@ function Update-MailboxFolderPermissionReport {
 
         [Alias("SubFolders")]
         [Parameter(ParameterSetName = "AddOrSet")]
+        [Parameter(ParameterSetName = "Remove")]
         [switch]
         $ManageAllSubFolders,
 
-        [Alias("ExcludeFolders")]
+        [Alias("Exclude")]
         [Parameter(ParameterSetName = "AddOrSet")]
         [Parameter(ParameterSetName = "Remove")]
         [string[]]
-        $FolderToExclude,
+        $ExcludeFolders,
 
         [Alias("Update")]
         [Parameter(ParameterSetName = "AddOrSet")]
@@ -93,110 +94,130 @@ function Update-MailboxFolderPermissionReport {
         [Parameter(ParameterSetName = "Remove")]
         [switch]
         $RemovePermission
-
-        # # Prompt for confirmation before executing potentially destructive actions
-        # [Parameter()]
-        # [Switch]$Confirm
     )
 
-    # Handle error messages
-    trap {
-        Write-Warning "Script Failed: $_"
-        throw $_
-    }
+    process {
+        # Handle error messages
+        trap {
+            Write-Warning "Script Failed: $_"
+            throw $_
+        }
 
-    $ConfirmPreference
+        function Update-FolderPermission {
+            param (
+                [string] $FolderID
+            )
 
-    function Update-FolderPermission {
-        param (
-            [string] $FolderID
-        )
-
-        
-        foreach ($Delegate in $DelegateMailbox) {
-            Write-Verbose "Applying folder permission configuration to delegate: $Delegate"
-
-            if ($RemovePermission) {
-                Write-Verbose "Removing permissions for $Delegate on $FolderID"
-                Remove-MailboxFolderPermission -Identity $FolderID -User $Delegate -Confirm:$Confirm -ErrorAction SilentlyContinue
-                if ($error[0].Exception.Message -like "*UserNotFoundInPermissionEntryException*") {
-                    Write-Verbose "Delegate $Delegate not found in permissions. Skipping..."
+            foreach ($Delegate in $DelegateMailbox) {
+                if ($RemovePermission) {
+                    if ($PSCmdlet.ShouldProcess("$FolderID", "Removing permissions for delegate $Delegate")) {
+                        Write-Verbose "Removing permissions for $Delegate on $FolderID"
+                        Remove-MailboxFolderPermission -Identity $FolderID -User $Delegate -Confirm:$false -ErrorAction SilentlyContinue
+                        if ($error[0].Exception.Message -like "*UserNotFoundInPermissionEntryException*") {
+                            Write-Verbose "Delegate $Delegate not found in permissions. Skipping..."
+                        }
+                    }
                 }
-            }
-            else {
-                Write-Verbose "Adding or setting permissions for $Delegate on $FolderID"
-                $null = Add-MailboxFolderPermission -Identity $FolderID -User $Delegate -AccessRights $AccessRights -Confirm:$Confirm -ErrorAction SilentlyContinue
+                else {
+                    if ($PSCmdlet.ShouldProcess("$FolderID", "Adding or setting permissions for delegate $Delegate")) {
+                        Write-Verbose "Adding or setting permissions for $Delegate on $FolderID"
+                        $null = Add-MailboxFolderPermission -Identity $FolderID -User $Delegate -AccessRights $AccessRights  -ErrorAction SilentlyContinue
 
-                if ($error[0].Exception.Message -like "*UserAlreadyExistsInPermissionEntryException*") {
-                    Write-Verbose "Delegate $Delegate already exists in permissions."
-                    if ($UpdatePermission) {
-                        Write-Verbose "Updating permissions for $Delegate on $FolderID"
-                        $null = Set-MailboxFolderPermission -Identity $FolderID -User $Delegate -AccessRights $AccessRights -Confirm:$Confirm
+                        if ($error[0].Exception.Message -like "*UserAlreadyExistsInPermissionEntryException*") {
+                            Write-Verbose "Delegate $Delegate already exists in permissions."
+                            if ($UpdatePermission) {
+                                Write-Verbose "Updating permissions for $Delegate on $FolderID"
+                                $null = Set-MailboxFolderPermission -Identity $FolderID -User $Delegate -AccessRights $AccessRights -Confirm:$false -ErrorAction SilentlyContinue
+                            }
+                        }
                     }
                 }
             }
         }
-        
-    }
 
-    # Check the delegate and delegator's mailbox if they exist
-    $DelegatorMailboxCheck = (Get-Mailbox $DelegatorMailbox -ErrorAction SilentlyContinue).PrimarySMTPAddress  
-    $DelegateMailboxCheck = $DelegateMailbox | ForEach-Object { Get-Mailbox $_ -ErrorAction SilentlyContinue } 
     
-    if ($null -eq $DelegatorMailboxCheck) {
-        Write-Error "The delegator ($DelegatorMailbox) specified the account does not exist or check the email id"
-        break;
-    }
-    else {
-        $DelegatorMailbox = $DelegatorMailboxCheck
-    }
+        # Check if the delegator and delegate mailboxes exist
+        $DelegatorMailboxCheck = (Get-Mailbox $DelegatorMailbox -ErrorAction SilentlyContinue).PrimarySMTPAddress
+        $DelegateMailboxCheck = $DelegateMailbox | ForEach-Object { Get-Mailbox $_ -ErrorAction SilentlyContinue }
 
-    if ($null -eq $DelegateMailboxCheck) {
-        Write-Error "The delegate ($DelegateMailbox) specified the account does not exist or check the email id"
-        break;
-    }
-    else {
-        $DelegateMailbox = $DelegateMailboxCheck.PrimarySMTPAddress
-    }
-
-
-    $ConvertFolderPath = @()
-    $FolderTypeSelection = "User Created", "Inbox", "SentItems", "DeletedItems", "JunkEmail", "Archive", "Drafts", "Notes", "Outbox"
-    $MailboxFolderDetails = Get-MailboxFolderStatistics $DelegatorMailbox
-    $filteredFolder = $MailboxFolderDetails | 
-        Where-Object { $_.FolderType -in $FolderTypeSelection } | 
-            Select-Object Identity, Name, @{Name = "FolderPath" ; Expression = { $_.FolderPath -replace ("/", "\") } }
-    
-    $ConvertFolderPath += $TargetFolder | ForEach-Object { if (($_).StartsWith("\")) { $_ }else { "\" + $_ } }
-
-    foreach ($folder  in $ConvertFolderPath) {
-        
-        if ($folder -notin $filteredFolder.FolderPath) {
-            Write-Verbose "$folder specified does not exist on the mailox"
+        if ($null -eq $DelegatorMailboxCheck) {
+            Write-Error "The delegator ($DelegatorMailbox) does not exist. Please check the email address."
+            return
         }
         else {
-
-            $ParentFolder = ($DelegatorMailbox,":",$folder) -join ""
-
-            if ($ManageAllSubFolders) {
-                Write-Verbose "Applyiing permission to parent folder $folder and subfolders"
-                Update-FolderPermission -FolderID $ParentFolder
-                $Subfolders = $filteredFolder.FolderPath | 
-                    Where-Object { $_ -like "$folder\*" } | 
-                        ForEach-Object { ($DelegatorMailbox+":"+$_)}
-
-                # $Subfolder
-                foreach ($Subfolder in $Subfolders) {
-                    $Subfolder
-                    Update-FolderPermission -FolderID
-                }
-            }
-            else {
-                Write-Verbose "Only Applyiing permission to parent folder $folder"
-                Update-FolderPermission -FolderID $ParentFolder
-            }
+            $DelegatorMailbox = $DelegatorMailboxCheck
         }
 
-    }
+        if ($null -eq $DelegateMailboxCheck) {
+            Write-Error "One or more of the specified delegate mailboxes ($DelegateMailbox) do not exist. Please check the email addresses."
+            return
+        }
+        else {
+            $DelegateMailbox = $DelegateMailboxCheck.PrimarySMTPAddress
+        }
 
+        # Initialize Arrays
+        $ConvertFolderPath = @()
+        $ExcludeFoldersPath = @()
+        $FolderTypeSelection = "User Created", "Inbox", "SentItems", "DeletedItems", "JunkEmail", "Archive", "Drafts", "Notes", "Outbox"
+        $MailboxFolderDetails = Get-MailboxFolderStatistics $DelegatorMailbox
+
+        # Filter Mailbox Folders and convert folder paths
+        $filteredFolder = $MailboxFolderDetails |
+        Where-Object { $_.FolderType -in $FolderTypeSelection } |
+        Select-Object Identity, Name, @{Name = "FolderPath" ; Expression = { $_.FolderPath -replace ("/", "\") } }
+
+        # Create a hashtable
+        $FolderPath = @{}
+        foreach ($folder in $filteredFolder) {
+            $FolderPath[$folder.FolderPath] = $true
+        }
+
+        # Convert folder paths and ensure they start with a backslash
+        $ConvertFolderPath += $TargetFolder | ForEach-Object { if (($_).StartsWith("\")) { $_ } else { "\" + $_ } }
+        if ($ExcludeFolders) {
+            $ExcludeFoldersPath += $ExcludeFolders | ForEach-Object { if (($_).StartsWith("\")) { $_ } else { "\" + $_ } }
+        }
+
+        if ($ExcludeFoldersPath) {
+            foreach ($excludePath in $ExcludeFoldersPath) {
+                $ExcludedPaths += $filteredFolder.FolderPath |
+                    Where-Object { $_ -like "$excludePath*" }
+            }
+        }
+        # Process each folder in the ConvertFolderPath array
+        foreach ($folder in $ConvertFolderPath) {
+            if (-not $FolderPath.ContainsKey($folder)) {
+                Write-Output "$folder specified does not exist in the mailbox"
+            }
+            else {
+                # Apply ExcludeFolders filter
+                if (!$ExcludeFoldersPath -or ($folder -notin $ExcludeFoldersPath)) {
+                    $ParentFolder = ($DelegatorMailbox, ":", $folder) -join ""
+
+                    if ($ManageAllSubFolders) {
+                        Write-Output "Applying permission to parent folder $folder and subfolders"
+                        Update-FolderPermission -FolderID $ParentFolder
+
+                        # Find and filter subfolders, excluding those in $ExcludeFoldersPath
+                        $Subfolders = $filteredFolder.FolderPath | Where-Object { $_ -like "$folder\*" -and $_ -notin $ExcludeFoldersPath -and $_ -notlike "$ExcludeFoldersPath\*"} | ForEach-Object { ($DelegatorMailbox + ":" + $_) }
+
+                        foreach ($Subfolder in $Subfolders) {
+                            Update-FolderPermission -FolderID $Subfolder
+                        }
+                    }
+                    else {
+                        Write-Output "Only applying permission to parent folder $folder"
+                        Update-FolderPermission -FolderID $ParentFolder
+                    }
+                }
+                else {
+                    Write-Output "The folder $folder Excluded"
+                }
+            }
+        }
+    }
+    end {
+        Write-Verbose "Mailbox folder permissions update process completed."
+    }
 }
