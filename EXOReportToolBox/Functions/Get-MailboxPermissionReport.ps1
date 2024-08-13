@@ -88,19 +88,19 @@ function Get-MailboxPermissionReport {
     
 
         if ($MailboxAddress) {
-            # Fetch mailboxes in batch to reduce multiple Get-Mailbox calls
+            # Fetch mailboxes in batch to reduce multiple Get-ExoMailbox calls
             $mailboxes = @()
             foreach ($user in $MailboxAddress) {
-                $mailboxes += Get-Mailbox -Identity $user -ErrorAction SilentlyContinue
+                $mailboxes += Get-ExoMailbox -Identity $user -ErrorAction SilentlyContinue
             }
         }
         else {
             # Fetch mailboxes based on MailboxTypes
             switch ($MailboxTypes) {
-                "UserMailbox" { $mailboxes = Get-Mailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited }
-                "SharedMailbox" { $mailboxes = Get-Mailbox -RecipientTypeDetails SharedMailbox -ResultSize Unlimited }
-                "RoomMailbox" { $mailboxes = Get-Mailbox -RecipientTypeDetails RoomMailbox -ResultSize Unlimited }
-                "All" { $mailboxes = Get-Mailbox -ResultSize Unlimited }
+                "UserMailbox" { $mailboxes = Get-ExoMailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited }
+                "SharedMailbox" { $mailboxes = Get-ExoMailbox -RecipientTypeDetails SharedMailbox -ResultSize Unlimited }
+                "RoomMailbox" { $mailboxes = Get-ExoMailbox -RecipientTypeDetails RoomMailbox -ResultSize Unlimited }
+                "All" { $mailboxes = Get-ExoMailbox -ResultSize Unlimited }
             }
         }
 

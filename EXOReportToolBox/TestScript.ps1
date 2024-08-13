@@ -449,3 +449,129 @@ function Get-GroupDeliveryManagementReport {
     }
 
 }
+
+
+Function Get-CalendarFolderPermissionReport {
+    <#
+    .SYNOPSIS
+        Retrieves calendar permissions for specified mailboxes or all mailboxes if none are specified.
+    
+    .DESCRIPTION
+        This script queries specified mailboxes or all mailboxes if no specific mailboxes are provided,
+        and retrieves the calendar permissions for each mailbox. It outputs the results in a custom object
+        format with details of mailbox name, email, folder name, user, and permissions.
+    
+    .PARAMETER MailboxTypes
+        Specifies the types of mailboxes to include. You can specify multiple values separated by commas, such as UserMailbox, SharedMailbox.
+    
+    .PARAMETER SpecificMailboxes
+        Specifies individual mailboxes to include. You can specify multiple mailbox identifiers separated by commas.
+    
+    .PARAMETER ResultSize
+        Specifies the number of results to return. The default value is "Unlimited".
+    
+    .EXAMPLE
+        .\Get-MailboxCalendarPermissions.ps1 -MailboxTypes "UserMailbox"
+        Retrieves and displays the calendar permissions for all user mailboxes.
+    
+    .EXAMPLE
+        .\Get-MailboxCalendarPermissions.ps1 -SpecificMailboxes "userA","userB"
+        Retrieves and displays the calendar permissions for the specified mailboxes.
+    #>
+    
+    [CmdletBinding()]
+    param(
+        [Parameter(ParameterSetName = "MailBoxTypes")]
+        [ValidateSet("UserMailbox", "SharedBox", "RoomMailbox", "All")]
+        [ValidateScript({
+                if ($_ -contains "All" -and $_.Count -gt 1) {
+                    throw "The 'All' option cannot be selected together with other mailbox types."
+                }
+                return $true
+            })]
+        [string[]]
+        $MailboxTypes = "All",
+    
+        [Parameter(ParameterSetName = "SpecificMailboxes")]
+        [string[]]
+        $SpecificMailboxes,
+
+        # report path
+        [Parameter()]
+        [string]
+        $ReportPath,
+
+        [Parameter()]
+        $ResultSize = "Unlimited"
+    )
+    
+    process {
+
+        #Export function
+        . "$PSScriptRoot\Export-ReportCsv.ps1"
+
+        # Get recipients based on the provided parameters
+        $allRecipients = if ($SpecificMailboxes) {
+            $SpecificMailboxes | ForEach-Object { Get-EXOMailbox $_ -ErrorAction SilentlyContinue }
+        }
+        else {
+            Get-EXOMailbox -RecipientTypeDetails $MailboxTypes -ResultSize $ResultSize
+        }
+
+        if ($allRecipients.count -eq 0) {
+            Write-Output "All the specified recipients are invalid"
+            return
+        }
+
+        if ($SpecificMailboxes) {
+            $allEmail = Get-EXORecipient -RecipientTypeDetails UserMailbox, SharedMailbox, MailUser
+        }else{
+            $allEmail = $allRecipients
+        }
+
+        $reportData = @()
+        $totalRecipients = $allRecipients.Count
+        $userEmailCache = @{} # Create a hashtable to cache UserEmail lookups
+
+        $count = 0
+        # Iterate over each recipient
+        $allRecipients | ForEach-Object {
+
+            $recipient = $_
+
+            # Get calendar folder permissions for the recipient
+            $folderPerms = Get-EXOMailboxFolderPermission -Identity "$($recipient.PrimarySMTPAddress):\Calendar" -ErrorAction SilentlyContinue | Where-Object { $_.User -notin "Default", "Anonymous" }
+            if ($folderPerms) {
+                # Iterate over each permission entry
+                $folderPerms | ForEach-Object {
+                    # Cache the email lookup to avoid repeated Get-EXORecipient calls
+                    if (-not $userEmailCache.ContainsKey($_.User)) {
+                        $userEmailCache[$_.User] = ($allRecipients | Where-Object {$_.DisplayName -eq $_.User}).PrimarySMTPAddress
+                    }
+
+                    # Create a custom object for each permission entry
+                    $reportData += [PSCustomObject]@{
+                        MailboxName  = $recipient.DisplayName
+                        MailboxEmail = $recipient.PrimarySMTPAddress
+                        User         = $_.User
+                        UserEmail    = $userEmailCache[$_.User]
+                        Permissions  = $_.AccessRights -join ","
+                    }
+                }
+
+                # Increment the count
+                $count++
+                if ($count % 20 -eq 0) {
+                    Write-Output "A total of $($count) out of $($totalRecipients) mailboxes have been processed."
+                }
+            }
+
+        }
+    }
+    end {
+
+        Write-Output "Calender Report export has been completed"
+        Export-ReportCsv -ReportData $reportData -ReportPath $ReportPath
+    }
+    
+}

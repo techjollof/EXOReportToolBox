@@ -1,4 +1,4 @@
-function Update-MailboxFolderPermissionReport {
+function Update-MailboxFolderPermissions {
 
     <#
     .SYNOPSIS
