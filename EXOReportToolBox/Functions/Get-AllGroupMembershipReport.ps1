@@ -39,7 +39,7 @@ function Get-AllGroupMembershipReport {
 
         [Parameter(Mandatory = $false, HelpMessage = "Specify whether the selected GroupType should be exported")]
         [switch]
-        $ExportGroupList
+        $ExpandedReport
     )
 
     begin {
@@ -114,7 +114,7 @@ function Get-AllGroupMembershipReport {
     process {
         $allGroups = Get-GroupDetails -GroupType $GroupType
 
-        if ($ExportGroupList) {
+        if ($ExpandedReport) {
             $allGroups | Export-Csv -Path "$Home\Downloads\$GroupType`_Report_$(Get-Date -Format 'yyyy_MM_dd_HH_mm').csv" -NoTypeInformation
         }
 
