@@ -13,9 +13,8 @@ function Get-AllGroupMembershipReport {
     .PARAMETER GroupType
     Defines the type of groups to include in the report, such as "DistributionGroupOnly", "AllDistributionGroup", "MailSecurityGroupOnly", etc.
 
-    .PARAMETER ExpandedReport
-    Include detailed information in the report. This includes specifics about the types of access granted to users or trustees.
-
+    .PARAMETER ExportGroupList
+    Indicates whether to export the list of groups to a CSV file. This is optional.
 
     .EXAMPLE
     Get-AllGroupMembershipReport -MembershipReportType Expanded -GroupType M365GroupOnly -ExportGroupList
