@@ -36,7 +36,7 @@ Specifies the type of groups to include in the trace, allowing for targeted anal
   - `AllGroups`  
 
 ### IncludeOutbound
-Indicates whether to include outbound message traces for the selected groups, providing insight into emails sent from the groups.  
+This option allows you to include outbound message traces for selected groups, providing valuable insights into emails sent from those groups. This refers specifically to instances where the group serves as the sender address, utilizing 'Send As' or 'Send on Behalf' permissions. 
 - **Type**: string  
 - **Required**: No  
 - **Default Value**:   
