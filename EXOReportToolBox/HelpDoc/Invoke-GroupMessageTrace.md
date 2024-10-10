@@ -1,10 +1,12 @@
-# Invoke-GroupMessageTrace Documentation
+# Invoke-GroupMessageTrace
 
 ## SYNOPSIS
 Initiates a message trace for specified group types in batches.
 
 ## DESCRIPTION
-The `Invoke-GroupMessageTrace` function allows administrators to perform message traces for various group types within Microsoft Exchange Online. This function enables tracking of messages sent and received by distribution lists, dynamic distribution lists, M365 groups, or all group types collectively. The tracing can be configured to process groups in specified batch sizes, making it efficient for larger environments.
+The `Invoke-GroupMessageTrace` function allows administrators to perform message traces for various group types within Microsoft Exchange Online. This function enables tracking of messages sent and received by distribution lists, dynamic distribution lists, M365 groups, or all group types collectively.
+
+The tracing can be configured to process groups in specified batch sizes, making it efficient for larger environments. The function retrieves groups based on the specified `GroupType` and initiates message trace reports for the last defined number of days. This provides deeper insight into message flow and any potential issues. The option to include outbound message traces offers further visibility into emails sent from groups where the group acts as the sender.
 
 ## PARAMETERS
 
