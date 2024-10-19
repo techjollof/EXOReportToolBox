@@ -4,7 +4,8 @@ function Get-MailboxPermissionReport {
         Generates a report of mailbox permissions.
 
     .DESCRIPTION
-        The Get-MailboxPermissionReport function retrieves and displays permissions for specified mailboxes or types of mailboxes. It can generate detailed reports including user or trustee information and access rights. This function is especially useful for administrators who need to audit or review access permissions within an Exchange Online environment.
+        The Get-MailboxPermissionReport function retrieves and displays permissions for specified mailboxes or types of mailboxes. It can generate detailed reports including user or trustee information and access rights. 
+        This function is especially useful for administrators who need to audit or review access permissions within an Exchange Online environment.
 
     .NOTES
         This function is designed for use in environments with Exchange Online.

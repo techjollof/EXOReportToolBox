@@ -1,0 +1,16 @@
+
+Hello <Support Engineer Name if you know>,
+
+Hope you are doing well.
+
+Issue: Need to set ComplianceTagHoldApplied to false to clear up RecoverableItems.
+
+Consent Form
+=================
+I, <FULL NAME>, with global admin account <GA EMAIL ADDRESS>, hereby authorize the Microsoft 365 team to remove the ComplianceTagHoldApplied from the mailboxes to enable clearing
+up the content from the Recoverable Items folder. I fully understand the complete impact of removing the ComplianceTagHoldApplied from the mailbox. Any content or information
+kept under this policy will be completely deleted and irreversible, and Microsoft Corporation will not be held accountable or responsible for any data loss.
+
+Mailbox Information
+=======================
+
