@@ -72,18 +72,24 @@ $LoggingPath = Join-FileDirectoryPath -ReportDirectory $ReportDirectory -ReportF
 
 function Write-Message {
     param (
-        [string]$Message,
+        [object]$Message,
         [ValidateSet("Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta", "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White")]
         [string]$TextColor = "White", # Default to White if no color specified
         [switch]$Logging,
         [switch]$MessageAndLogging
     )
 
-    # Prepare the timestamped message
-    $TimestampedMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $Message"
-
     # Log the message if the logging switch is enabled
     if ($Logging -or $MessageAndLogging) {
+        # Prepare the timestamped message
+        if ($Message -is [System.Management.Automation.ErrorRecord] ) {
+            $lineNumber = $Message.InvocationInfo.ScriptLineNumber
+            $TimestampedMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Line No: $lineNumber - Error: $($Message.Exception.Message)"
+        }
+        else {
+            $TimestampedMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Informational - Message: $Message"
+        }
+
         # Store messages in a global array for batch writing
         $global:LogMessages += $TimestampedMessage
 
@@ -96,6 +102,8 @@ function Write-Message {
         Write-Host "`n$Message`n" -ForegroundColor $TextColor
     }
 }
+
+
 
 
 function Write-Log {
@@ -140,7 +148,7 @@ function Get-MailboxInfo {
         if ($MailboxID) {
             # Retrieve mailbox information by MailboxID
             $mailboxInfo = Get-EXOMailbox -Identity $MailboxID -Properties DisplayName, UserPrincipalName, GUID, RetentionHoldEnabled, LitigationHoldEnabled, DelayHoldApplied, InPlaceHolds, ElcProcessingDisabled, ComplianceTagHoldApplied, SingleItemRecoveryEnabled, 
-            RetainDeletedItemsFor, ExchangeGuid, ExternalDirectoryObjectId, LegacyExchangeDN, DistinguishedName, ArchiveStatus, ArchiveQuota, AutoExpandingArchiveEnabled,RecoverableItemsQuota -ErrorAction SilentlyContinue
+            RetainDeletedItemsFor, ExchangeGuid, ExternalDirectoryObjectId, LegacyExchangeDN, DistinguishedName, ArchiveStatus, ArchiveQuota, AutoExpandingArchiveEnabled, RecoverableItemsQuota -ErrorAction SilentlyContinue
             
             $ArchiveMailbox = Get-EXOMailbox $MailboxID -Archive -PropertySets Quota -ErrorAction SilentlyContinue
 
@@ -158,7 +166,7 @@ function Get-MailboxInfo {
             }
 
             $mailboxes = Get-EXOMailbox -ResultSize Unlimited -RecipientTypeDetails $RecipientType -Properties DisplayName, UserPrincipalName, GUID, RetentionHoldEnabled, LitigationHoldEnabled, DelayHoldApplied, InPlaceHolds, ElcProcessingDisabled,
-            ComplianceTagHoldApplied, SingleItemRecoveryEnabled, RetainDeletedItemsFor, ExchangeGuid, ExternalDirectoryObjectId, LegacyExchangeDN, DistinguishedName, ArchiveStatus, ArchiveQuota, AutoExpandingArchiveEnabled,RecoverableItemsQuota -ErrorAction SilentlyContinue
+            ComplianceTagHoldApplied, SingleItemRecoveryEnabled, RetainDeletedItemsFor, ExchangeGuid, ExternalDirectoryObjectId, LegacyExchangeDN, DistinguishedName, ArchiveStatus, ArchiveQuota, AutoExpandingArchiveEnabled, RecoverableItemsQuota -ErrorAction SilentlyContinue
             
             $ArchiveMailbox = Get-EXOMailbox -ResultSize Unlimited -RecipientTypeDetails $RecipientType -Archive -PropertySets Quota -ErrorAction SilentlyContinue
 
@@ -424,11 +432,11 @@ function Start-MRMProcessing {
     foreach ($mailbox in $MailboxIds) {
         try {
             # Start the Managed Folder Assistant for the specified mailbox
-            Start-ManagedFolderAssistant -Identity $mailbox
-            Start-ManagedFolderAssistant -Identity $mailbox -AggMailboxCleanup -FullCrawl -HoldCleanup
+            Start-ManagedFolderAssistant -Identity $mailbox.UserPrincipalName #-ErrorAction SilentlyContinue
+            Start-ManagedFolderAssistant -Identity $mailbox.UserPrincipalName -AggMailboxCleanup -FullCrawl -HoldCleanup #-ErrorAction SilentlyContinue
         }
         catch {
-            Write-Message -Message $_ -Logging
+            Write-Message -Message $Error[0] -Logging
         }
     }
 }
@@ -436,10 +444,14 @@ function Start-MRMProcessing {
 
 #Create log file
 # Create the log header
-$logHeader = ('#' * 20) + "`t" + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + "`tProgram activity logs Starts`t" + ('#' * 20) + "`n"
+$logHeader = "`nError line Number -" + ('#' * 20) + "`t" + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + "`tProgram activity logs Starts`t" + ('#' * 20) + "`n"
 $logFooter = ('#' * 20) + "`t" + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + "`tProgram activity logs Ends`t" + ('#' * 20) + "`n"
 
-Write-Message -Message $logHeader -Logging
+# Write-Message -Message $logHeader -Logging
+$global:LogMessages += $logHeader
+Write-Log
+
+
 
 # Control Menu
 $UserPrompt = "What action do you want to perform? : "
@@ -455,7 +467,8 @@ else {
 if ($PrimaryAndArchiveMailboxes) {
     $Mailboxes = $PrimaryAndArchiveMailboxes[0]
     $ArchiveMailboxes = $PrimaryAndArchiveMailboxes[1]
-}else{
+}
+else {
     Write-Message -Message "There are no valid mailboxes found in the provided information, ending the program" -TextColor Red -MessageAndLogging
     Write-Log
     Return
@@ -487,44 +500,58 @@ do {
     # Get user choice
     $choice = Read-Host "Please enter the number of your choice" 
 
+    
     switch ($choice) {
         '1' {
             $MailboxRecoverableItemsFolderStats = @()
-            
-            $Mailboxes | ForEach-Object {
-                $PrimaryMailbox = $_
-                $ArchiveMailbox = $ArchiveMailboxes | Where-Object {$_.UserPrincipalName -eq $PrimaryMailbox.UserPrincipalName}
-                $MailboxRecoverableItemsFolderStats += if ($ArchiveMailbox) {
-                    Get-MailboxRecoverableStatistics -MailboxId $PrimaryMailbox -ArchiveMailboxId $ArchiveMailbox
-                } else {
-                    Get-MailboxRecoverableStatistics -MailboxId $PrimaryMailbox
+            Write-Host "Number of mailboxes: $($Mailboxes.Count)"
+            foreach ($PrimaryMailbox in $Mailboxes) {
+                try {
+                    $ArchiveMailbox = $ArchiveMailboxes | Where-Object { $_.UserPrincipalName -eq $PrimaryMailbox.UserPrincipalName }
+                    if ($ArchiveMailbox) {
+                        $stats = Get-MailboxRecoverableStatistics -MailboxId $PrimaryMailbox -ArchiveMailboxId $ArchiveMailbox
+                    }
+                    else {
+                        $stats = Get-MailboxRecoverableStatistics -MailboxId $PrimaryMailbox
+                    }
+                    $MailboxRecoverableItemsFolderStats += $stats
                 }
-
-                Write-Message -Message $Error[0] -Logging
+                catch {
+                    Write-Message -Message $_ -Logging
+                }
             }
-
+    
             if ($MailboxRecoverableItemsFolderStats) {
                 Write-Verbose "Recoverable items folder statistics have been exported to $($ReportDirectory)" -Verbose
                 $MailboxRecoverableItemsFolderStats | Export-Csv -Path $RecoverableFolderStatsPath -NoTypeInformation
-            } else {
+            }
+            else {
                 Write-Message "There is no content due to invalid mailbox information provided; ending program and providing mailboxes." -TextColor Red -MessageAndLogging
             }
         }
         '2' {
             Write-Message "Removing retention policies and holds applied to the mailboxes and creating consent from removal of ComplianceTagHoldApplied policy"
             Set-Content $ConsentFormPath -Value $ConsentForm -Force
-
-            $Mailboxes | ForEach-Object { 
-                $InitialHoldConfig += Remove-MailboxHoldConfig -MailboxID $_.Identity -CompliancePolicy $ComplianceHolds
-                Write-Message -Message $Error[0] -Logging
+    
+            foreach ($Mailbox in $Mailboxes) { 
+                try {
+                    $InitialHoldConfig += Remove-MailboxHoldConfig -MailboxID $Mailbox.Identity -CompliancePolicy $ComplianceHolds
+                }
+                catch {
+                    Write-Message -Message $_ -Logging
+                }
             }
         }
         '3' { 
             Write-Message "Generating report for retention policies and holds applied to the mailboxes."
             $ReportInitialHoldConfig = @()
-            $Mailboxes | ForEach-Object {
-                $ReportInitialHoldConfig += Remove-MailboxHoldConfig -MailboxID $_.Identity -CompliancePolicy $ComplianceHolds -HoldReportOnly
-                Write-Message -Message $Error[0] -Logging
+            foreach ($Mailbox in $Mailboxes) {
+                try {
+                    $ReportInitialHoldConfig += Remove-MailboxHoldConfig -MailboxID $Mailbox.Identity -CompliancePolicy $ComplianceHolds -HoldReportOnly
+                }
+                catch {
+                    Write-Message -Message $_ -Logging
+                }
             }
             $ReportInitialHoldConfig | Export-Csv (Join-FileDirectoryPath -ReportDirectory $ReportDirectory -ReportFileName "Preview_Report_Mailbox_Holds.csv") -NoTypeInformation
             $ReportInitialHoldConfig | Out-GridView -Title "Mailbox Initial Hold configuration"
@@ -532,28 +559,32 @@ do {
         '4' { 
             if ($InitialHoldConfig.Count -eq 0) {
                 Write-Message "There are no default saved settings from the selected mailboxes to restore" -TextColor Yellow -MessageAndLogging
-            } else {
+            }
+            else {
                 Restore-MailboxHoldConfig -InitialMailboxHoldConfig $InitialHoldConfig
             }
         }
         '5' { 
             if ($InitialHoldConfig.Count -eq 0) {
                 Write-Message "There are no default saved settings from the selected mailboxes to remove delay hold" -TextColor Yellow -MessageAndLogging
-            } else {
+            }
+            else {
                 Remove-ComplianceDelayHold -MailboxIds $Mailboxes
             }
         }
         '6' { 
             if ($Mailboxes -and -not $InitialHoldConfig) {
                 $confirmAction = Read-Host "The hold has been removed for the mailboxes. Are you sure you want to proceed? (Y/N) "
-                
-                if ($confirmAction.ToLower() -in 'y', "yes") {
+                    
+                if ($confirmAction.ToLower() -in @('y', 'yes')) {
+                    Write-Message "MRM processing started for the specified mailboxes." -TextColor Yellow -MessageAndLogging
                     Start-MRMProcessing -MailboxIds $Mailboxes
-                    Write-Message "MRM processing started for the specified mailboxes." -TextColor Yellow
-                } else {
-                    Write-Message "Action canceled." -TextColor Yellow
                 }
-            } else {
+                else {
+                    Write-Message "MRM Action canceled." -TextColor Yellow -MessageAndLogging
+                }
+            }
+            else {
                 Start-MRMProcessing -MailboxIds $Mailboxes
             }
         }
@@ -561,7 +592,8 @@ do {
             if ($InitialHoldConfig) {
                 $InitialHoldConfig | Export-Csv $MailboxInitialHoldConfigPath -NoTypeInformation
                 $InitialHoldConfig | Out-GridView -Title "Mailbox Initial Hold configuration"
-            } else {
+            }
+            else {
                 Write-Message -Message "The mailboxes have not yet been processed; no initial configuration has been retrieved." -TextColor "Yellow" -MessageAndLogging
             }
         }
@@ -579,7 +611,4 @@ do {
         }
     }
     Write-Log
-} while ($choice -ne 'q') 
-
-# }
-    
+} while ($choice -ne 'q')
