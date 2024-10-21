@@ -575,3 +575,146 @@ Function Get-CalendarFolderPermissionReport {
     }
     
 }
+
+
+function Write-Message {
+    param (
+        [string]$Message,
+        [string]$TextColor = "White", # Default to White if no color specified
+        [switch]$Logging,
+        [switch]$BatchWrite
+    )
+
+    # Log the message if the logging switch is enabled
+    if ($Logging) {
+        $TimestampedMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $Message"
+        if ($BatchWrite) {
+            # Store messages in a global array for batch writing
+            $global:LogMessages += $TimestampedMessage
+        }
+        else {
+            # Write immediately if batch writing is not enabled
+            Add-Content -Path $LoggingPath -Value $TimestampedMessage
+        }
+    }
+    else {
+        Write-Host "`n$Message`n" -ForegroundColor $TextColor
+    } 
+}
+
+function Write-Log {
+    param (
+        [string]$LogPath
+    )
+
+    if ($global:LogMessages.Count -gt 0) {
+        # Write all batched messages to the log file at once
+        $global:LogMessages | Add-Content -Path $LoggingPath
+        # Clear the global array after writing
+        $global:LogMessages.Clear()
+    }
+}
+
+
+
+do {
+    # Display the menu
+    Write-Message -Message $UserPrompt -TextColor "Green"
+    $actions | ForEach-Object { Write-Output "`t$_" }
+
+    # Get user choice
+    $choice = Read-Host "Please enter the number of your choice" 
+
+    switch ($choice) {
+        '1' {
+            $MailboxRecoverableItemsFolderStats = @()
+            
+            $Mailboxes | ForEach-Object {
+                $PrimaryMailbox = $_
+                $ArchiveMailbox = $ArchiveMailboxes | Where-Object {$_.UserPrincipalName -eq $PrimaryMailbox.UserPrincipalName}
+                $MailboxRecoverableItemsFolderStats += if ($ArchiveMailbox) {
+                    Get-MailboxRecoverableStatistics -MailboxId $PrimaryMailbox -ArchiveMailboxId $ArchiveMailbox
+                } else {
+                    Get-MailboxRecoverableStatistics -MailboxId $PrimaryMailbox
+                }
+
+                Write-Message -Message $Error[0] -Logging
+            }
+
+            if ($MailboxRecoverableItemsFolderStats) {
+                Write-Verbose "Recoverable items folder statistics have been exported to $($ReportDirectory)" -Verbose
+                $MailboxRecoverableItemsFolderStats | Export-Csv -Path $RecoverableFolderStatsPath -NoTypeInformation
+            } else {
+                Write-Message "There is no content due to invalid mailbox information provided; ending program and providing mailboxes." -TextColor Red -MessageAndLogging
+            }
+        }
+        '2' {
+            Write-Message "Removing retention policies and holds applied to the mailboxes and creating consent from removal of ComplianceTagHoldApplied policy"
+            Set-Content $ConsentFormPath -Value $ConsentForm -Force
+
+            $Mailboxes | ForEach-Object { 
+                $InitialHoldConfig += Remove-MailboxHoldConfig -MailboxID $_.Identity -CompliancePolicy $ComplianceHolds
+                Write-Message -Message $Error[0] -Logging
+            }
+        }
+        '3' { 
+            Write-Message "Generating report for retention policies and holds applied to the mailboxes."
+            $ReportInitialHoldConfig = @()
+            $Mailboxes | ForEach-Object {
+                $ReportInitialHoldConfig += Remove-MailboxHoldConfig -MailboxID $_.Identity -CompliancePolicy $ComplianceHolds -HoldReportOnly
+                Write-Message -Message $Error[0] -Logging
+            }
+            $ReportInitialHoldConfig | Export-Csv (Join-FileDirectoryPath -ReportDirectory $ReportDirectory -ReportFileName "Preview_Report_Mailbox_Holds.csv") -NoTypeInformation
+            $ReportInitialHoldConfig | Out-GridView -Title "Mailbox Initial Hold configuration"
+        }
+        '4' { 
+            if ($InitialHoldConfig.Count -eq 0) {
+                Write-Message "There are no default saved settings from the selected mailboxes to restore" -TextColor Yellow -MessageAndLogging
+            } else {
+                Restore-MailboxHoldConfig -InitialMailboxHoldConfig $InitialHoldConfig
+            }
+        }
+        '5' { 
+            if ($InitialHoldConfig.Count -eq 0) {
+                Write-Message "There are no default saved settings from the selected mailboxes to remove delay hold" -TextColor Yellow -MessageAndLogging
+            } else {
+                Remove-ComplianceDelayHold -MailboxIds $Mailboxes
+            }
+        }
+        '6' { 
+            if ($Mailboxes -and -not $InitialHoldConfig) {
+                $confirmAction = Read-Host "The hold has been removed for the mailboxes. Are you sure you want to proceed? (Y/N) "
+                
+                if ($confirmAction.ToLower() -in 'y', "yes") {
+                    Start-MRMProcessing -MailboxIds $Mailboxes
+                    Write-Message "MRM processing started for the specified mailboxes." -TextColor Yellow
+                } else {
+                    Write-Message "Action canceled." -TextColor Yellow
+                }
+            } else {
+                Start-MRMProcessing -MailboxIds $Mailboxes
+            }
+        }
+        '7' {
+            if ($InitialHoldConfig) {
+                $InitialHoldConfig | Export-Csv $MailboxInitialHoldConfigPath -NoTypeInformation
+                $InitialHoldConfig | Out-GridView -Title "Mailbox Initial Hold configuration"
+            } else {
+                Write-Message -Message "The mailboxes have not yet been processed; no initial configuration has been retrieved." -TextColor "Yellow" -MessageAndLogging
+            }
+        }
+        'q' {
+            if ($InitialHoldConfig) {
+                Write-Message -Message "Exporting initial mailbox settings and configuration" -TextColor "green" -Logging
+                $InitialHoldConfig | Export-Csv $MailboxInitialHoldConfigPath -NoTypeInformation
+            }
+            Write-Message "Happy Using....Exiting..." -TextColor Yellow
+            Write-Message -Message $logFooter -Logging
+            exit
+        }
+        default { 
+            Write-Message "Invalid choice. Please select a valid option." -TextColor "Red" 
+        }
+    }
+    Write-Log
+} while ($choice -ne 'q') 

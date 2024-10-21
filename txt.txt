@@ -1,0 +1,57 @@
+
+ExternalDirectoryObjectId     : f81946f3-1fd2-406e-8b40-cd9e11a1a1f8
+UseDatabaseRetentionDefaults  : False
+RetainDeletedItemsUntilBackup : False
+LitigationHoldEnabled         : False
+SingleItemRecoveryEnabled     : True
+RetentionHoldEnabled          : False
+EndDateForRetentionHold       : 
+StartDateForRetentionHold     : 
+RetentionComment              : 
+RetentionUrl                  : 
+LitigationHoldDate            : 
+LitigationHoldOwner           : 
+ComplianceTagHoldApplied      : False
+DelayHoldApplied              : False
+InactiveMailboxRetireTime     : 
+OrphanSoftDeleteTrackingTime  : 
+LitigationHoldDuration        : Unlimited
+RetentionPolicy               : Default MRM Policy
+RetainDeletedItemsFor         : 14.00:00:00
+ProhibitSendQuota             : 99 GB (106,300,440,576 bytes)
+ProhibitSendReceiveQuota      : 100 GB (107,374,182,400 bytes)
+RecoverableItemsQuota         : 100 GB (107,374,182,400 bytes)
+RecoverableItemsWarningQuota  : 90 GB (96,636,764,160 bytes)
+CalendarLoggingQuota          : 6 GB (6,442,450,944 bytes)
+UseDatabaseQuotaDefaults      : False
+IssueWarningQuota             : 98 GB (105,226,698,752 bytes)
+RulesQuota                    : 256 KB (262,144 bytes)
+UserPrincipalName             : JohannaL@M365x44824121.OnMicrosoft.com
+ArchiveDatabase               : NAMP223DG060-db324
+ArchiveGuid                   : 3f533404-efa0-486e-9ca1-cdb0292ba262
+ArchiveName                   : {In-Place Archive -Johanna Lorenz}
+JournalArchiveAddress         : 
+ArchiveQuota                  : 100 GB (107,374,182,400 bytes)
+ArchiveWarningQuota           : 90 GB (96,636,764,160 bytes)
+ArchiveDomain                 : 
+ArchiveStatus                 : Active
+ArchiveState                  : Local
+AutoExpandingArchiveEnabled   : False
+DisabledArchiveDatabase       : 
+DisabledArchiveGuid           : 00000000-0000-0000-0000-000000000000
+ArchiveRelease                : 
+InPlaceHolds                  : {-mbxdfa83fde1df6450582f10e056d04c3e5, mbx02e5e89be9bd40d1bd78a1f59fc2bee0:2}
+Alias                         : JohannaL
+DisplayName                   : Johanna Lorenz
+EmailAddresses                : {SPO:SPO_1f0e0437-1424-44ec-8756-29b5fa4cc68a@SPO_70e7f470-ed25-47f5-aa2f-096f0f44c831, SIP:johannal@m365x44824121.onmicrosoft.com, SMTP:JohannaL@M365x44824121.OnMicrosoft.com}
+PrimarySmtpAddress            : JohannaL@M365x44824121.OnMicrosoft.com
+RecipientType                 : UserMailbox
+RecipientTypeDetails          : UserMailbox
+Identity                      : f81946f3-1fd2-406e-8b40-cd9e11a1a1f8
+Id                            : f81946f3-1fd2-406e-8b40-cd9e11a1a1f8
+ExchangeVersion               : 0.20 (15.0.0.0)
+Name                          : f81946f3-1fd2-406e-8b40-cd9e11a1a1f8
+DistinguishedName             : CN=f81946f3-1fd2-406e-8b40-cd9e11a1a1f8,OU=M365x44824121.onmicrosoft.com,OU=Microsoft Exchange Hosted Organizations,DC=NAMP223A004,DC=PROD,DC=OUTLOOK,DC=COM
+OrganizationId                : NAMP223A004.PROD.OUTLOOK.COM/Microsoft Exchange Hosted Organizations/M365x44824121.onmicrosoft.com - NAMP223A004.PROD.OUTLOOK.COM/ConfigurationUnits/M365x44824121.onmicrosoft.com/Configuration
+Guid                          : 3b4e351b-2766-432a-810c-6711cee885f6
+
