@@ -104,8 +104,6 @@ function Write-Message {
 }
 
 
-
-
 function Write-Log {
     if ($global:LogMessages.Count -gt 0) {
         # Write all batched messages to the log file at once
