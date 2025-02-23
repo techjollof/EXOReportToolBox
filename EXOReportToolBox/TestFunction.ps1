@@ -1,49 +1,32 @@
-function TestReport {
-    [CmdletBinding()]
-    param (
-        [Parameter(ParameterSetName="SpecificMailboxes")]
-        [string[]]
-        $MailboxAddress,
 
-        [Parameter(ParameterSetName="Bulk")]
-        [ValidateSet("UserMailbox","SharedMailbox","RoomMailbox","All")]
-        $MailboxTypes = "All",
+[CmdletBinding()]
+param (
+    [ValidateSet(
+        "DistributionGroupOnly", "AllDistributionGroup", "MailSecurityGroupOnly", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+        "NonMailSecurityGroup", "SecurityGroupExcludeM365", "SecurityGroupM365", "DynamicSecurityGroup", "DynamicSecurityExcludeM365","AllGroups"
+    )]
+    $GroupType
+)
 
-        [Parameter()]
-        [switch]
-        $ExpandedReport
-    )
-
-    # Fetch mailboxes in batch to reduce multiple Get-Mailbox calls
-    $mailboxes = Get-Mailbox -Identity $MailboxAddress -ErrorAction SilentlyContinue
-
-    $permReport
-    
-    $permReport = foreach ($mailbox in $mailboxes) {
-        if ($null -ne $mailbox) {
-            # Fetch full access permissions
-            $fullAccess = Get-MailboxPermission -Identity $mailbox.Identity | Where-Object { $_.User -ne "NT AUTHORITY\SELF" }
-            # Fetch SendAs permissions
-            $sendAs = Get-RecipientPermission -Identity $mailbox.Identity | Where-Object { $_.Trustee -ne "NT AUTHORITY\SELF" }
-            # Fetch SendOnBehalf permissions
-            $sendOnBehalfCheck = $mailbox.GrantSendOnBehalfTo
-            $sendOnBehalf = if ($null -ne $sendOnBehalfCheck) {
-                $sendOnBehalfCheck | ForEach-Object { 
-                    $recipient = Get-Recipient $_ -ErrorAction SilentlyContinue
-                    if ($null -ne $recipient) { $recipient.PrimarySMTPAddress }
-                }
-            }
-
-            # Build the report object
-            [PSCustomObject]@{
-                DisplayName   = $mailbox.DisplayName
-                EmailAddress  = $mailbox.PrimarySMTPAddress
-                ReadManage    = ($fullAccess | Select-Object -ExpandProperty User) -join ","
-                SendAs        = ($sendAs | Select-Object -ExpandProperty Trustee) -join ","
-                SendOnBehalf  = ($sendOnBehalf) -join ","
-            }
-        }
+Write-Host "Retrieving group details for $GroupType..."
+try {
+    switch ($GroupType) {
+            
+        "DistributionGroupOnly" { Get-DistributionGroup -RecipientTypeDetails MailUniversalDistributionGroup -ResultSize Unlimited }
+        "AllDistributionGroup" { Get-DistributionGroup -ResultSize Unlimited }
+        "MailSecurityGroupOnly" { Get-DistributionGroup -RecipientTypeDetails MailUniversalSecurityGroup -ResultSize Unlimited }
+        "DynamicDistributionGroup" { Get-DynamicDistributionGroup -ResultSize Unlimited }
+        "M365GroupOnly" { Get-MgGroup -Filter "groupTypes/any(c:c eq 'Unified')" }
+        "AllSecurityGroup" { Get-MgGroup -Filter "SecurityEnabled eq true" }
+        "NonMailSecurityGroup" { Get-MgGroup -Filter "SecurityEnabled eq true and MailEnabled eq false" }
+        "SecurityGroupExcludeM365" { Get-MgGroup -Filter "SecurityEnabled eq true" | Where-Object { "Unified" -notin $_.GroupTypes } }
+        "SecurityGroupM365" { Get-MgGraph -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'Unified')" }
+        "DynamicSecurityGroup" { Get-MgGroup -Filter "groupTypes/any(c:c eq 'DynamicMembership')" }
+        "DynamicSecurityExcludeM365" { Get-MgGroup -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'DynamicMembership')" }
+        default { throw "Unknown group type: $GroupType" }
     }
-
-    return $permReport
+}
+catch {
+    Write-Host "Error occurred while fetching groups for type '$GroupType': $_"
+    throw $_
 }

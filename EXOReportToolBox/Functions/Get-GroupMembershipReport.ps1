@@ -1,4 +1,4 @@
-# function Get-GroupMembershipReport {
+function Get-GroupMembershipReport {
 <#
     .SYNOPSIS
     Generates a membership report for specified group types.
@@ -28,8 +28,8 @@ param(
 
     [Parameter()]
     [ValidateSet(
-        "DistributionGroupOnly", "AllDistributionGroup", "MailSecurityGroupOnly", "DynamicDistributionGroup", "M365GroupOnly",
-        "AllSecurityGroup", "AllSecurityGroupExcludeM365", "NonMailSecurityGroup", "DynamicSecurityGroup", "allGroups"
+        "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+        "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
     )]
     $GroupType = "DistributionGroupOnly",
 
@@ -43,22 +43,34 @@ param(
 begin {
     function Get-GroupDetails {
         param (
-            [string]$GroupType
+            [ValidateSet(
+                "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+                "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+            )]
+            $GroupType
         )
 
-        switch ($GroupType) {
-            "DistributionGroupOnly" { Get-DistributionGroup -RecipientTypeDetails MailUniversalDistributionGroup -ResultSize Unlimited }
-            "AllDistributionGroup" { Get-DistributionGroup -ResultSize Unlimited }
-            "MailSecurityGroupOnly" { Get-DistributionGroup -RecipientTypeDetails MailUniversalSecurityGroup -ResultSize Unlimited }
-            "DynamicDistributionGroup" { Get-DynamicDistributionGroup -ResultSize Unlimited }
-            "M365GroupOnly" { Get-MgGroup -Filter "groupTypes/any(c:c eq 'Unified')" }
-            "AllSecurityGroup" { Get-MgGroup -Filter "SecurityEnabled eq true" }
-            "NonMailSecurityGroup" { Get-MgGroup -Filter "SecurityEnabled eq true and MailEnabled eq false" }
-            "SecurityGroupExcludeM365" { Get-MgGroup -Filter "SecurityEnabled eq true" | Where-Object { "Unified" -notin $_.GroupTypes } }
-            "SecurityGroupM365" { Get-MgGraph -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'Unified')" }
-            "DynamicSecurityGroup" { Get-MgGroup -Filter "groupTypes/any(c:c eq 'DynamicMembership')" }
-            "DynamicSecurityExcludeM365" { Get-MgGroup -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'DynamicMembership')" }
-            default { throw "Unknown group type: $GroupType" }
+        Write-Host "Retrieving group details for $GroupType..."
+        try {
+            switch ($GroupType) {
+            
+                "DistributionGroupOnly" { Get-DistributionGroup -RecipientTypeDetails MailUniversalDistributionGroup -ResultSize Unlimited }
+                "AllDistributionGroup" { Get-DistributionGroup -ResultSize Unlimited }
+                "MailSecurityGroupOnly" { Get-DistributionGroup -RecipientTypeDetails MailUniversalSecurityGroup -ResultSize Unlimited }
+                "DynamicDistributionGroup" { Get-DynamicDistributionGroup -ResultSize Unlimited }
+                "M365GroupOnly" { Get-MgGroup -Filter "groupTypes/any(c:c eq 'Unified')" }
+                "AllSecurityGroup" { Get-MgGroup -Filter "SecurityEnabled eq true" }
+                "NonMailSecurityGroup" { Get-MgGroup -Filter "SecurityEnabled eq true and MailEnabled eq false" }
+                "SecurityGroupExcludeM365" { Get-MgGroup -Filter "SecurityEnabled eq true" | Where-Object { "Unified" -notin $_.GroupTypes } }
+                "M365SecurityGroup" { Get-MgGraph -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'Unified')" }
+                "DynamicSecurityGroup" { Get-MgGroup -Filter "groupTypes/any(c:c eq 'DynamicMembership')" }
+                "DynamicSecurityExcludeM365" { Get-MgGroup -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'DynamicMembership')" }
+                default { throw "Unknown group type: $GroupType" }
+            }
+        }
+        catch {
+            Write-Host "Error occurred while fetching groups for type '$GroupType': $_"
+            throw $_
         }
     }
 
@@ -78,9 +90,19 @@ begin {
             $OwnerName = if ($OwnerInfo.count -ne 0) { $OwnerInfo.DisplayName -join "," } else { "No Owners" }
         }
         else {
-            $OwnerInfo = (Get-MgGroupOwner -GroupId $group.ExternalDirectoryObjectId).AdditionalProperties
-            $OwnerEmail = if ($OwnerInfo.count -ne 0) { $OwnerInfo.mail -join "," } else { "No Owners" }
-            $OwnerName = if ($OwnerInfo.count -ne 0) { $OwnerInfo.displayName -join "," } else { "No Owners" }
+            try {
+                # Attempt to get the group owners via Microsoft Graph
+                $OwnerInfo = (Get-MgGroupOwner -GroupId $group.ExternalDirectoryObjectId).AdditionalProperties
+                # If owners are found, retrieve their details
+                $OwnerEmail = if ($OwnerInfo.count -ne 0) { $OwnerInfo.mail -join "," } else { "No Owners" }
+                $OwnerName = if ($OwnerInfo.count -ne 0) { $OwnerInfo.displayName -join "," } else { "No Owners" }
+            }
+            catch {
+                # Handle errors (e.g., group not found or inaccessible)
+                Write-Warning "Failed to retrieve owner information for group: $($group.DisplayName). Error: $_"
+                $OwnerEmail = "Error retrieving owners"
+                $OwnerName = "Error retrieving owners"
+            }
         }
 
         # Get group email address
@@ -126,25 +148,30 @@ begin {
     # Get members of a group
     function Get-GroupMembers {
         param (
-            [string]$Identity,
+            [string]$GroupId,
             [string]$GroupType
         )
-            
+
+        Write-Host "Retrieving members for group: $GroupId"
+    
         switch ($GroupType) {
-            { @("DistributionGroupOnly", "AllDistributionGroup", "MailSecurityGroupOnly") } {
-                return Get-DistributionGroupMember -Identity $Identity -ResultSize Unlimited
+            { @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup") } {
+                return Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited
             }
             "DynamicDistributionGroup" {
-                return Get-DynamicDistributionGroupMember -Identity $Identity -ResultSize Unlimited
+                return Get-DynamicDistributionGroupMember -Identity $GroupId -ResultSize Unlimited
+            }
+            { @("M365GroupOnly", "AllSecurityGroup", "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups") } {
+                # Handle these group types (you can adjust the logic to suit the appropriate command)
+                return Get-MgGroupMember -GroupId $GroupId -All
             }
             default {
                 throw "Unknown group type: $GroupType"
-            }
+            }      
         }
     }
-        
-        
-        
+    
+    
 }
 
 process {
@@ -158,10 +185,10 @@ process {
     $allMembers = @()
 
     foreach ($group in $allGroups) {
-        $groupMembers = Get-GroupMembers -Identity $group.PrimarySMTPAddress -GroupType $GroupType
+        $groupMembers = Get-GroupMembers -GroupId $group.PrimarySMTPAddress -GroupType $GroupType
         $allMembers += ProcessGroupMembers -ReportType $ReportType -Group $group -groupMembers $groupMembers
     }
 
-    $allMembers | Export-Csv -Path "$Home\Downloads\$GroupType`_Membership_$MembershipReportType`_Report_$(Get-Date -Format 'yyyy_MM_dd_HH_mm').csv" -NoTypeInformation
+    $allMembers # | Export-Csv -Path "$Home\Downloads\$GroupType`_Membership_$MembershipReportType`_Report_$(Get-Date -Format 'yyyy_MM_dd_HH_mm').csv" -NoTypeInformation
 }
-# }
+}
