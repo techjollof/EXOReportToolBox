@@ -937,3 +937,317 @@ function Read-MailboxIdentity {
         }
     }
 }
+
+
+
+
+
+
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    Write-Host "Running on PowerShell 7 or later, using parallel processing."
+    
+    # Retrieve group details based on the provided group type
+    $groups = Get-GroupDetails -GroupType $GroupType
+    $allGroupMembers = New-Object System.Collections.Generic.List[Object]
+
+    # Import the function to the parallel task (Make sure Invoke-Groups is defined)
+    $InvokeGroupFunction = ${Function:Invoke-Groups}.ToString()
+    $InvokeGroupMembers = ${Function:Get-GroupMembers}.ToString()
+    $InvokeProcessGroupMembers = ${Function:ProcessGroupMembers}.ToString()
+
+    #External function to retrieve members of a distribution group
+    $InvokeGetDistributionGroupMember = ${Function:Get-DistributionGroupMember}.ToString()
+    $InvokeGetRecipient = ${Function:Get-Recipient}.ToString()
+
+    Write-Host "Processing all groups and retrieving members for group type: $($GroupType)"
+    
+    # Process each group in parallel
+    $groups[0..3] | ForEach-Object -Parallel {
+
+        $group = $_
+        
+        write-host "Processing group: $($group.DisplayName) :  $using:GroupType"
+        
+        # Use the $using: to reference external variables and functions
+        ${Function:Invoke-Groups} = $using:InvokeGroupFunction
+        ${Function:Get-GroupMembers} = $using:InvokeGroupMembers
+        ${Function:ProcessGroupMembers} = $using:InvokeProcessGroupMembers
+
+        # External functions
+        ${Function:Get-DistributionGroupMember} = $using:InvokeGetDistributionGroupMember
+        ${Function:Get-Recipient} = $using:InvokeGetRecipient
+        
+        # Retrieve members for this group using the helper function
+        $groupMembers = Invoke-Groups -Groups $group -GroupType $using:GroupType
+
+        $groupMembers
+    
+        # Return the group members for this specific group
+        return $groupMembers
+    }  | ForEach-Object {
+        # Collect the results from parallel tasks and add them to the allGroupMembers list
+        $allGroupMembers.Add($_)
+    }
+    
+    # Return the collection of all group members
+    Write-Host "Total members retrieved: $($allGroupMembers.Count)"
+    return $allGroupMembers
+}
+
+
+
+
+
+function Get-GroupDetails {
+    param (
+        [ValidateSet(
+            "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+            "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+        )]
+        $GroupType
+    )
+
+    Write-Host "Retrieving group details for $GroupType..."
+        
+    try {
+        switch ($GroupType) {
+            "DistributionGroupOnly" {
+                Get-DistributionGroup -RecipientTypeDetails MailUniversalDistributionGroup -ResultSize Unlimited
+            }
+            "AllDistributionGroup" {
+                Get-DistributionGroup -ResultSize Unlimited
+            }
+            "MailSecurityGroupOnly" {
+                Get-DistributionGroup -RecipientTypeDetails MailUniversalSecurityGroup -ResultSize Unlimited
+            }
+            "DynamicDistributionGroup" {
+                Get-DynamicDistributionGroup -ResultSize Unlimited
+            }
+            "M365GroupOnly" {
+                Get-MgGroup -Filter "groupTypes/any(c:c eq 'Unified')"
+            }
+            "AllSecurityGroup" {
+                Get-MgGroup -Filter "SecurityEnabled eq true"
+            }
+            "NonMailSecurityGroup" {
+                Get-MgGroup -Filter "SecurityEnabled eq true and MailEnabled eq false"
+            }
+            "SecurityGroupExcludeM365" {
+                Get-MgGroup -Filter "SecurityEnabled eq true" | Where-Object { "Unified" -notin $_.GroupTypes }
+            }
+            "M365SecurityGroup" {
+                Get-MgGroup -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'Unified')"
+            }
+            "DynamicSecurityGroup" {
+                Get-MgGroup -Filter "groupTypes/any(c:c eq 'DynamicMembership')"
+            }
+            "DynamicSecurityExcludeM365" {
+                Get-MgGroup -Filter "SecurityEnabled eq true and groupTypes/any(c:c eq 'DynamicMembership')"
+            }
+            "AllGroups" {
+                # Fetch both standard and dynamic groups in a single call and combine the results
+                $allGroups = Get-MgGroup -All
+                $dynamicGroups = Get-DynamicDistributionGroup -ResultSize Unlimited
+                $allGroups + $dynamicGroups
+            }
+            default {
+                throw "Unknown group type: $GroupType"
+            }
+        }
+    }
+    catch {
+        Write-Host "Error occurred while fetching groups for type '$GroupType': $_"
+        throw $_
+    }            
+}
+
+
+function Get-GroupMembers {
+    param (
+        [string]$GroupId,
+        [ValidateSet(
+            "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+            "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+        )]
+        $GroupType
+    )
+
+    # Define a lookup table for GroupType and their corresponding commands
+    $groupTypeMap = @{
+        "DistributionGroupOnly"       = { Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited }
+        "MailSecurityGroupOnly"       = { Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited }
+        "AllDistributionGroup"        = { Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited }
+        "DynamicDistributionGroup"    = { Get-DynamicDistributionGroupMember -Identity $GroupId -ResultSize Unlimited }
+        "M365GroupOnly"               = { Get-MgGroupMember -GroupId $GroupId -All }
+        "AllSecurityGroup"            = { Get-MgGroupMember -GroupId $GroupId -All }
+        "NonMailSecurityGroup"        = { Get-MgGroupMember -GroupId $GroupId -All }
+        "SecurityGroupExcludeM365"    = { Get-MgGroupMember -GroupId $GroupId -All }
+        "M365SecurityGroup"           = { Get-MgGroupMember -GroupId $GroupId -All }
+        "DynamicSecurityGroup"        = { Get-MgGroupMember -GroupId $GroupId -All }
+        "DynamicSecurityExcludeM365"  = { Get-MgGroupMember -GroupId $GroupId -All }
+        "AllGroups"                   = { Get-MgGroupMember -GroupId $GroupId -All }
+    }
+
+    try {
+        if ($groupTypeMap.ContainsKey($GroupType)) {
+            # Execute the corresponding script block from the lookup table
+            return & $groupTypeMap[$GroupType]
+        } else {
+            throw "Unknown group type: $GroupType"
+        }
+    }
+    catch {
+        Write-Host "Error occurred while fetching members for group '$GroupId' and type '$GroupType': $_"
+        throw $_
+    }
+}
+
+
+function Get-GroupMembers {
+    param (
+        [string]$GroupId,
+        [ValidateSet(
+            "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+            "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+        )]
+        $GroupType
+    )
+
+    # Define a lookup table for GroupType and their corresponding commands
+    $groupTypeMap = @{
+        # Combined entries for DistributionGroupOnly, MailSecurityGroupOnly, and AllDistributionGroup
+        { $_ -in @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup") } = { 
+            Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited 
+        }
+        "DynamicDistributionGroup" = { 
+            Get-DynamicDistributionGroupMember -Identity $GroupId -ResultSize Unlimited 
+        }
+        # Combined entries for M365GroupOnly, AllSecurityGroup, NonMailSecurityGroup, SecurityGroupExcludeM365, M365SecurityGroup, DynamicSecurityGroup, DynamicSecurityExcludeM365, AllGroups
+        { $_ -in @("M365GroupOnly", "AllSecurityGroup", "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups") } = { 
+            Get-MgGroupMember -GroupId $GroupId -All 
+        }
+    }
+
+    try {
+        # Find the matching script block in the lookup table
+        $scriptBlock = $groupTypeMap.Keys | Where-Object { $_ -is [ScriptBlock] -and (& $_) -or $_ -eq $GroupType }
+        if ($scriptBlock) {
+            # Execute the corresponding script block
+            return & $groupTypeMap[$scriptBlock]
+        } else {
+            throw "Unknown group type: $GroupType"
+        }
+    }
+    catch {
+        Write-Host "Error occurred while fetching members for group '$GroupId' and type '$GroupType': $_"
+        throw $_
+    }
+}
+
+
+function Get-GroupMembers {
+    param (
+        [string]$GroupId,
+        [ValidateSet(
+            "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+            "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+        )]
+        $GroupType
+    )
+
+    # Define a lookup table (hash table) for GroupType and their corresponding commands
+    $groupTypeMap = @{
+        @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup") = { Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited }
+        "DynamicDistributionGroup" = { Get-DynamicDistributionGroupMember -Identity $GroupId -ResultSize Unlimited }
+        @("M365GroupOnly", "AllSecurityGroup", "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups") = { Get-MgGroupMember -GroupId $GroupId -All }
+    }
+
+    try {
+        # Find the group type in the map
+        $matchingGroupType = $groupTypeMap.Keys | Where-Object { $_ -contains $GroupType }
+
+        if ($matchingGroupType) {
+            # Execute the corresponding script block from the lookup table
+            return & $groupTypeMap[$matchingGroupType]
+        } else {
+            throw "Unknown group type: $GroupType"
+        }
+    }
+    catch {
+        Write-Host "Error occurred while fetching members for group type '$GroupType': $_"
+        throw $_
+    }
+}
+
+
+
+function Get-GroupMembers {
+    param (
+        [string]$GroupId,
+        [ValidateSet(
+            "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+            "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+        )]
+        $GroupType
+    )
+
+    # Define a lookup table (hash table) for GroupType and their corresponding commands
+    $groupTypeMap = @{
+        # Use script blocks as keys to group multiple GroupType values
+        { $_ -in @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup") } = { 
+            Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited 
+        }
+        { $_ -eq "DynamicDistributionGroup" } = { 
+            Get-DynamicDistributionGroupMember -Identity $GroupId -ResultSize Unlimited 
+        }
+        { $_ -in @("M365GroupOnly", "AllSecurityGroup", "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups") } = { 
+            Get-MgGroupMember -GroupId $GroupId -All 
+        }
+    }
+
+    try {
+        # Find the matching script block in the lookup table
+        $scriptBlock = $groupTypeMap.Keys | Where-Object { $_ -is [ScriptBlock] -and (& $_) }
+
+        if ($scriptBlock) {
+            # Execute the corresponding script block from the lookup table
+            return & $groupTypeMap[$scriptBlock]
+        } else {
+            throw "Unknown group type: $GroupType"
+        }
+    }
+    catch {
+        Write-Host "Error occurred while fetching members for group type '$GroupType': $_"
+        throw $_
+    }
+}
+
+
+
+    # Get members of a group
+    function Get-GroupMembers {
+        param (
+            [string]$GroupId,
+            [ValidateSet(
+                "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+                "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
+            )]
+            $GroupType
+        )
+        switch ($GroupType) {
+            { $_ -in @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup") } {
+                return Get-DistributionGroupMember -Identity $GroupId -ResultSize Unlimited # -ErrorAction SilentlyContinue
+            }
+            "DynamicDistributionGroup" {
+                return Get-DynamicDistributionGroupMember -Identity $GroupId -ResultSize Unlimited #-ErrorAction SilentlyContinue
+            }
+            { $_ -in @("M365GroupOnly", "AllSecurityGroup", "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups") } {
+                # Handle these group types (you can adjust the logic to suit the appropriate command)
+                return Get-MgGroupMember -GroupId $GroupId -All
+            }
+            default {
+                throw "Unknown group type: $GroupType"
+            } 
+        }
+    }
+    
