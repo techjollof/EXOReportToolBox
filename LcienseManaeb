@@ -1,0 +1,245 @@
+function ValidateSet {
+    param (
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("ConnectGraph", "AssignLicenseToGroup", "GetLicensesForGroup", "GetDisabledPlansForGroup", 
+                     "GetGroupsWithLicenses", "GetGroupLicenseStatistics", "GetGroupsWithLicenseErrors", 
+                     "GetUsersWithLicenseErrorsInGroup", "RemoveDirectLicensesForGroupMembers")]
+        [string]$Action,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$GroupId,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$SkuId
+    )
+
+    switch ($Action) {
+        "ConnectGraph" {
+            # Function to connect to Microsoft Graph
+            function Connect-Graph {
+                if ($null -eq (Get-MgContext)) {
+                    Connect-MgGraph -Scopes "Directory.Read.All, User.Read.All, Group.Read.All, Organization.Read.All" -NoWelcome
+                }
+            }
+            Connect-Graph
+        }
+        
+        "AssignLicenseToGroup" {
+            # Function to assign licenses to a group
+            function Assign-LicenseToGroup {
+                param (
+                    [Parameter(Mandatory = $true)]
+                    [ValidateNotNullOrEmpty()]
+                    [string]$GroupId,
+                    
+                    [Parameter(Mandatory = $true)]
+                    [ValidateNotNullOrEmpty()]
+                    [string]$SkuId
+                )
+                try {
+                    $params = @{
+                        AddLicenses = @(
+                            @{
+                                SkuId = $SkuId
+                            }
+                        )
+                        RemoveLicenses = @()
+                    }
+                    Set-MgGroupLicense -GroupId $GroupId -BodyParameter $params
+                } catch {
+                    Write-Error "Failed to assign license to group: $_"
+                }
+            }
+            Assign-LicenseToGroup -GroupId $GroupId -SkuId $SkuId
+        }
+        
+        "GetLicensesForGroup" {
+            # Function to view product licenses assigned to a group
+            function Get-LicensesForGroup {
+                param (
+                    [Parameter(Mandatory = $true)]
+                    [ValidateNotNullOrEmpty()]
+                    [string]$GroupId
+                )
+                try {
+                    Get-MgGroup -GroupId $GroupId -Property "AssignedLicenses" | Select-Object -ExpandProperty AssignedLicenses
+                } catch {
+                    Write-Error "Failed to retrieve licenses for group: $_"
+                }
+            }
+            Get-LicensesForGroup -GroupId $GroupId
+        }
+        
+        "GetDisabledPlansForGroup" {
+            # Function to view all disabled service plan licenses assigned to a group
+            function Get-DisabledPlansForGroup {
+                param (
+                    [Parameter(Mandatory = $true)]
+                    [ValidateNotNullOrEmpty()]
+                    [string]$GroupId
+                )
+                try {
+                    Get-MgGroup -GroupId $GroupId -Property "AssignedLicenses" | 
+                        Select-Object -ExpandProperty AssignedLicenses |
+                        ForEach-Object {
+                            $_ | Select-Object SkuId, DisabledPlans
+                        }
+                } catch {
+                    Write-Error "Failed to retrieve disabled plans for group: $_"
+                }
+            }
+            Get-DisabledPlansForGroup -GroupId $GroupId
+        }
+        
+        "GetGroupsWithLicenses" {
+            # Function to get all groups with licenses
+            function Get-GroupsWithLicenses {
+                try {
+                    $groups = Get-MgGroup -All
+                    $groupsWithLicenses = @()
+                    foreach ($group in $groups) {
+                        $licenses = Get-MgGroup -GroupId $group.Id -Property "AssignedLicenses, Id, DisplayName" | Select-Object AssignedLicenses, DisplayName, Id
+                        if ($licenses.AssignedLicenses) {
+                            $groupData = [PSCustomObject]@{
+                                ObjectId = $group.Id
+                                DisplayName = $group.DisplayName
+                                Licenses = $licenses.AssignedLicenses
+                            }
+                            $groupsWithLicenses += $groupData
+                        }
+                    }
+                    return $groupsWithLicenses
+                } catch {
+                    Write-Error "Failed to retrieve groups with licenses: $_"
+                }
+            }
+            Get-GroupsWithLicenses
+        }
+        
+        "GetGroupLicenseStatistics" {
+            # Function to get statistics for groups with licenses
+            function Get-GroupLicenseStatistics {
+                try {
+                    $groups = Get-MgGroup -All -Property LicenseProcessingState, DisplayName, Id, AssignedLicenses | 
+                        Where-Object {$_.LicenseProcessingState -eq "ProcessingComplete"} 
+                    $groupInfoArray = @()
+                    $groups = $groups | Where-Object {$_.AssignedLicenses -ne $null}
+                    foreach ($group in $groups) {
+                        $groupInfo = New-Object PSObject
+                        $groupInfo | Add-Member -MemberType NoteProperty -Name "Group Name" -Value $group.DisplayName
+                        $groupInfo | Add-Member -MemberType NoteProperty -Name "Group ID" -Value $group.Id
+                        $groupInfo | Add-Member -MemberType NoteProperty -Name "License Types" -Value ($group.AssignedLicenses | Select-Object -ExpandProperty SkuId)
+                        $groupInfo | Add-Member -MemberType NoteProperty -Name "Total User Count" -Value (Get-MgGroupMember -GroupId $group.Id -All | Measure-Object).Count
+                        $groupInfo | Add-Member -MemberType NoteProperty -Name "Licensed User Count" -Value (Get-MgGroupMember -GroupId $group.Id -All | Where-Object {$_.LicenseProcessingState -eq "ProcessingComplete"} | Measure-Object).Count
+                        $groupInfo | Add-Member -MemberType NoteProperty -Name "License Error Count" -Value (Get-MgGroupMember -GroupId $group.Id -All | Where-Object {$_.LicenseProcessingState -eq "ProcessingFailed"} | Measure-Object).Count
+                        $groupInfoArray += $groupInfo
+                    }
+                    return $groupInfoArray
+                } catch {
+                    Write-Error "Failed to retrieve group license statistics: $_"
+                }
+            }
+            Get-GroupLicenseStatistics
+        }
+        
+        "GetGroupsWithLicenseErrors" {
+            # Function to get all groups with license errors
+            function Get-GroupsWithLicenseErrors {
+                try {
+                    $groups = Get-MgGroup -All -Property LicenseProcessingState, DisplayName, Id, AssignedLicenses | 
+                        Where-Object {$_.LicenseProcessingState -eq "ProcessingFailed" -and $_.AssignedLicenses -ne $null}
+                    return $groups
+                } catch {
+                    Write-Error "Failed to retrieve groups with license errors: $_"
+                }
+            }
+            Get-GroupsWithLicenseErrors
+        }
+        
+        "GetUsersWithLicenseErrorsInGroup" {
+            # Function to get all users with license errors in a group
+            function Get-UsersWithLicenseErrorsInGroup {
+                param (
+                    [Parameter(Mandatory = $true)]
+                    [ValidateNotNullOrEmpty()]
+                    [string]$GroupId
+                )
+                try {
+                    $groupMembers = Get-MgGroupMember -GroupId $GroupId -All -Property LicenseProcessingState, DisplayName, Id, AssignedLicenses |
+                        Where-Object {$_.LicenseProcessingState -eq "ProcessingFailed"}
+                    return $groupMembers
+                } catch {
+                    Write-Error "Failed to retrieve users with license errors in group: $_"
+                }
+            }
+            Get-UsersWithLicenseErrorsInGroup -GroupId $GroupId
+        }
+        
+        "RemoveDirectLicensesForGroupMembers" {
+            # Function to remove direct licenses for users with group licenses
+            function Remove-DirectLicensesForGroupMembers {
+                param (
+                    [Parameter(Mandatory = $true)]
+                    [ValidateNotNullOrEmpty()]
+                    [string]$GroupId
+                )
+                try {
+                    # Get all groups with licenses assigned
+                    $groupsWithLicenses = Get-MgGroup -All -Property AssignedLicenses, DisplayName, Id | 
+                        Where-Object { $_.assignedlicenses } | 
+                        Select-Object DisplayName, Id -ExpandProperty AssignedLicenses | 
+                        Select-Object DisplayName, Id, SkuId
+                    
+                    $output = @()
+                    
+                    # Loop through each group with licenses
+                    foreach ($group in $groupsWithLicenses) {
+                        $groupLicenses = $group.SkuId
+                        $groupMembers = Get-MgGroupMember -GroupId $group.Id -All
+                        
+                        foreach ($member in $groupMembers) {
+                            # Check if the member is a user
+                            if ($member.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.user') {
+                                # Get User With Directly Assigned Licenses Only
+                                $user = Get-MgUser -UserId $member.Id -Property AssignedLicenses, LicenseAssignmentStates, DisplayName |
+                                    Where-Object { $_.AssignedByGroup -eq $null }
+    
+                                $licensesToRemove = @()
+                                if ($user) {
+                                    if ($user.count -ge 2) {
+                                        foreach ($u in $user) {
+                                            $userLicenses = $u.SkuId
+                                            $licensesToRemove += $userLicenses | Where-Object { $_ -in $groupLicenses }
+                                        }
+                                    }
+                                    
+                                    # Remove the licenses from the user
+                                    if ($licensesToRemove) {
+                                        $result = Set-MgUserLicense -UserId $member.Id -AddLicenses @() -RemoveLicenses $licensesToRemove
+                                        $obj = [PSCustomObject]@{
+                                            User                      = $result.DisplayName
+                                            Id                        = $result.Id
+                                            LicensesRemoved           = $licensesToRemove
+                                            LicenseInheritedFromGroup = $group.DisplayName
+                                            GroupId                   = $group.Id
+                                        }
+
+                                        $output += $obj
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    $output | Format-Table -AutoSize
+                } catch {
+                    Write-Error "Failed to remove direct licenses for group members: $_"
+                }
+            }
+            Remove-DirectLicensesForGroupMembers -GroupId $GroupId
+        }
+        
+        default {
+            Write-Error "Invalid action: $Action"
+        }
+    }
+}
