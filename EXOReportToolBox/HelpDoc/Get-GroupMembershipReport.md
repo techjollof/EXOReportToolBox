@@ -12,12 +12,49 @@ You can specify the `GroupType` to filter the types of groups to include in the 
 
 The report can optionally be exported to a CSV file using the `-ReportPath` parameter. Additionally, a group summary report can be exported with the `-GroupSummaryReport` switch.
 
-
 ## SYNTAX
 
 ```powershell
 Get-GroupMembershipReport [-GroupType] <String> [-ReportPath <String>] [-ExpandedReport] [-GroupSummaryReport]
 ```
+
+
+## EXAMPLES
+
+### Example 1: Generate a report for distribution groups
+
+```powershell
+Get-GroupMembershipReport -GroupType "DistributionGroupOnly" -ReportPath "C:\Reports\GroupMembership.csv"
+```
+
+Generates a report for all distribution groups and saves it to `C:\Reports\GroupMembership.csv`.
+
+### Example 2: Generate an expanded report for all Microsoft 365 groups
+
+```powershell
+Get-GroupMembershipReport -GroupType "M365GroupOnly" -ExpandedReport -ReportPath "C:\Reports\M365GroupMembership.csv"
+```
+
+Generates an expanded report for all Microsoft 365 groups, including detailed member information, and saves it to `C:\Reports\M365GroupMembership.csv`.
+
+### Example 3: Export a summary report for all security groups and members
+
+```powershell
+Get-GroupMembershipReport -GroupType "AllSecurityGroup" -GroupSummaryReport -ReportPath "C:\Reports\SecurityGroupSummary.csv"
+```
+
+Generates a summary report for all security groups and exports it to `C:\Reports\SecurityGroupSummary.csv`.
+
+### Example 4: Export a summary report for all Group type, the trick is here
+
+```powershell
+$AllGroupReport = @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
+"NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups")
+
+$AllGroupReport | % {Get-GroupMembershipReport -GroupType $_ -ReportPath "C:\Reports\$($_)Summary.csv"}
+```
+
+Generates a summary report for all types and exports it to.
 
 ## PARAMETERS
 
@@ -47,7 +84,7 @@ Specifies the type of groups to be included in the report. This defines which gr
 - **Type**: `String`
 - **Position**: 2
 - **Required**: Yes
-- **Description**: 
+- **Description**:
   Specify the file path where the generated group membership report should be saved as a CSV file.
 
 ### `-ExpandedReport`
@@ -55,7 +92,7 @@ Specifies the type of groups to be included in the report. This defines which gr
 - **Type**: `SwitchParameter`
 - **Position**: 3
 - **Required**: No
-- **Description**: 
+- **Description**:
   If specified, the report will include expanded details for each group member.
 
 ### `-GroupSummaryReport`
@@ -63,35 +100,8 @@ Specifies the type of groups to be included in the report. This defines which gr
 - **Type**: `SwitchParameter`
 - **Position**: 4
 - **Required**: No
-- **Description**: 
+- **Description**:
   If specified, a summary report of the groups (without member details) will also be exported to a CSV file.
-
-
-## EXAMPLES
-
-### Example 1: Generate a report for distribution groups
-
-```powershell
-Get-GroupMembershipReport -GroupType "DistributionGroupOnly" -ReportPath "C:\Reports\GroupMembership.csv"
-```
-
-Generates a report for all distribution groups and saves it to `C:\Reports\GroupMembership.csv`.
-
-### Example 2: Generate an expanded report for all Microsoft 365 groups
-
-```powershell
-Get-GroupMembershipReport -GroupType "M365GroupOnly" -ExpandedReport -ReportPath "C:\Reports\M365GroupMembership.csv"
-```
-
-Generates an expanded report for all Microsoft 365 groups, including detailed member information, and saves it to `C:\Reports\M365GroupMembership.csv`.
-
-### Example 3: Export a summary report for all security groups and members
-
-```powershell
-Get-GroupMembershipReport -GroupType "AllSecurityGroup" -GroupSummaryReport -ReportPath "C:\Reports\SecurityGroupSummary.csv"
-```
-
-Generates a summary report for all security groups and exports it to `C:\Reports\SecurityGroupSummary.csv`.
 
 ## NOTES
 
@@ -102,7 +112,7 @@ Generates a summary report for all security groups and exports it to `C:\Reports
 ## RELATED LINKS
 
 - `Export-ReportCsv`
-- `Get-DistributionGroup`
-- `Get-MgGroup`
-- `Get-DynamicDistributionGroup`
-- `Get-MgGroupMember`
+- [`Get-DistributionGroup`](https://docs.microsoft.com/powershell/module/exchange/get-distributiongroup)
+- [`Get-MgGroup`](https://docs.microsoft.com/powershell/module/microsoft.graph.groups/get-mggroup)
+- [`Get-DynamicDistributionGroup`](https://docs.microsoft.com/powershell/module/exchange/get-dynamicdistributiongroup)
+- [`Get-MgGroupMember`](https://docs.microsoft.com/powershell/module/microsoft.graph.groups/get-mggroupmember)

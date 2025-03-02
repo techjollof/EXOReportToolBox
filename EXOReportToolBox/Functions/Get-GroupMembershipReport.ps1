@@ -249,10 +249,10 @@ function Get-GroupMembershipReport {
     
             # Define a lookup table for GroupType and their corresponding commands
             $groupTypeMap = @{
-                "DistributionGroupOnly"      = { Get-DistributionGroupMember -Identity $groupId -ResultSize Unlimited }
-                "MailSecurityGroupOnly"      = { Get-DistributionGroupMember -Identity $groupId -ResultSize Unlimited }
-                "AllDistributionGroup"       = { Get-DistributionGroupMember -Identity $groupId -ResultSize Unlimited }
-                "DynamicDistributionGroup"   = { Get-DynamicDistributionGroupMember -Identity $groupId -ResultSize Unlimited }
+                "DistributionGroupOnly"      = { Get-DistributionGroupMember -Identity $groupId -ResultSize Unlimited -ErrorAction SilentlyContinue}
+                "MailSecurityGroupOnly"      = { Get-DistributionGroupMember -Identity $groupId -ResultSize Unlimited -ErrorAction SilentlyContinue}
+                "AllDistributionGroup"       = { Get-DistributionGroupMember -Identity $groupId -ResultSize Unlimited -ErrorAction SilentlyContinue}
+                "DynamicDistributionGroup"   = { Get-DynamicDistributionGroupMember -Identity $groupId -ResultSize Unlimited -ErrorAction SilentlyContinue}
                 "M365GroupOnly"              = { Get-MgGroupMember -GroupId $groupId -All }
                 "AllSecurityGroup"           = { Get-MgGroupMember -GroupId $groupId -All }
                 "NonMailSecurityGroup"       = { Get-MgGroupMember -GroupId $groupId -All }
@@ -357,9 +357,9 @@ function Get-GroupMembershipReport {
     
     }
     end {
-        Write-Host "Exported file of the groups completed, svae to: $ReportPath"
+        Write-Host "Exported file of the groups completed, save to: $ReportPath"
         if ($GroupSummaryReport) {
-            Export-ReportCsv -ReportPath $filePath -ReportData $groups
+            Export-ReportCsv -ReportPath "SummaryReportGroupType $ReportPath" -ReportData $groups
         }
         Export-ReportCsv -ReportPath $ReportPath -ReportData $allGroupMembers
     }
