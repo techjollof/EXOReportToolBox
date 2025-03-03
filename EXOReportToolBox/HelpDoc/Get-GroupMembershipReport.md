@@ -15,7 +15,12 @@ The report can optionally be exported to a CSV file using the `-ReportPath` para
 ## SYNTAX
 
 ```powershell
-Get-GroupMembershipReport [-GroupType] <String> [-ReportPath <String>] [-ExpandedReport] [-GroupSummaryReport]
+Get-GroupMembershipReport
+    [-GroupType <String>]
+    -ReportPath <String>
+    [-ExpandedReport]
+    [-GroupSummaryReport]
+    [<CommonParameters>]
 ```
 
 
@@ -45,16 +50,13 @@ Get-GroupMembershipReport -GroupType "AllSecurityGroup" -GroupSummaryReport -Rep
 
 Generates a summary report for all security groups and exports it to `C:\Reports\SecurityGroupSummary.csv`.
 
-### Example 4: Export a summary report for all Group type, the trick is here
-
+### Example 4: Export Summary Reports for All Group Types
 ```powershell
-$AllGroupReport = @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
-"NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups")
+$AllGroupReport = @("DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup", "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups")
 
-$AllGroupReport | % {Get-GroupMembershipReport -GroupType $_ -ReportPath "C:\Reports\$($_)Summary.csv"}
+$AllGroupReport | % { Get-GroupMembershipReport -GroupType $_ -ReportPath "C:\Reports\$($_)Summary.csv" }
 ```
-
-Generates a summary report for all types and exports it to.
+This command generates a summary report for all available group types and saves each to a separate CSV file.
 
 ## PARAMETERS
 
@@ -64,18 +66,18 @@ Generates a summary report for all types and exports it to.
 - **Position**: 1
 - **Default Value**: `"DistributionGroupOnly"`
 - **Accepted Values**:
-  - `DistributionGroupOnly`
-  - `MailSecurityGroupOnly`
-  - `AllDistributionGroup`
-  - `DynamicDistributionGroup`
-  - `M365GroupOnly`
-  - `AllSecurityGroup`
-  - `NonMailSecurityGroup`
-  - `SecurityGroupExcludeM365`
-  - `M365SecurityGroup`
-  - `DynamicSecurityGroup`
-  - `DynamicSecurityExcludeM365`
-  - `AllGroups`
+  - `DistributionGroupOnly`            : Only mail-enabled distribution groups.
+  - `MailSecurityGroupOnly`            : Only mail-enabled security groups.
+  - `AllDistributionGroup`             : Includes all types of distribution groups.
+  - `DynamicDistributionGroup`         : Only dynamic distribution groups.
+  - `M365GroupOnly`                    : Only Microsoft 365 (M365) groups.
+  - `AllSecurityGroup`                 : Includes all security groups.
+  - `NonMailSecurityGroup`             : Only security groups that are NOT mail-enabled.
+  - `SecurityGroupExcludeM365`         : Security groups, excluding M365 Security Groups.
+  - `M365SecurityGroup`                : Only Microsoft 365 security groups.
+  - `DynamicSecurityGroup`             : Only dynamic security groups.
+  - `DynamicSecurityExcludeM365`       : Dynamic security groups, excluding M365 Security Groups.
+  - `AllGroups`                        : Retrieves ownership details for all group types.
 
 Specifies the type of groups to be included in the report. This defines which groups are queried and included based on their membership type. Only one value can be selected
 
@@ -103,11 +105,21 @@ Specifies the type of groups to be included in the report. This defines which gr
 - **Description**:
   If specified, a summary report of the groups (without member details) will also be exported to a CSV file.
 
+
+## Outputs
+The function generates a report file at the specified `ReportPath`. The content of the report depends on the parameters provided:
+- If `-ExpandedReport` is used, the report includes detailed membership information.
+- If `-GroupSummaryReport` is used, the report provides a summary of the selected group type.
+
+
 ## NOTES
 
 - Ensure that you have the appropriate permissions to retrieve group membership details and that the necessary modules (`Get-DistributionGroup`, `Get-MgGroup`, etc.) are installed.
 - The `Export-ReportCsv.ps1` script must be available in the same directory as the script to export the report to CSV format.
 - The `-ExpandedReport` switch provides a more detailed membership listing, which may result in a larger report size.
+
+- Ensure you have the necessary permissions to access group membership information in your environment.
+- The function relies on PowerShell modules such as `ExchangeOnlineManagement` or `Microsoft.graph` for group data retrieval. Ensure these modules are installed and imported before running the function.
 
 ## RELATED LINKS
 

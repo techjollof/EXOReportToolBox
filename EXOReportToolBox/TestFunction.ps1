@@ -1,26 +1,44 @@
 
-    [CmdletBinding()]
-    param(
+param (
+    [Object]$Group
+)
 
-        [Parameter(ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = "SpecificReport")]
-        [Alias("ReportType")]
-        [ValidateSet(
-            "DistributionGroupOnly", "MailSecurityGroupOnly", "AllDistributionGroup", "DynamicDistributionGroup", "M365GroupOnly", "AllSecurityGroup",
-            "NonMailSecurityGroup", "SecurityGroupExcludeM365", "M365SecurityGroup", "DynamicSecurityGroup", "DynamicSecurityExcludeM365", "AllGroups"
-        )]
-        $GroupType = "DistributionGroupOnly",
+# Define a hash table for fast lookup of RecipientTypeDetails
+$recipientTypeMap = @{
+    "MailUniversalDistributionGroup" = "Distribution Group"
+    "MailUniversalSecurityGroup"     = "Mail Security Group"
+    "RoomList"                       = "Resource Room List"
+    "DynamicDistributionGroup"       = "Dynamic Distribution Group"
+}
 
-        [Parameter(Mandatory, HelpMessage = "Specify the file path to save the report.")]
-        [string]
-        $ReportPath,
+# Cache expensive property lookups (avoid repeated access to properties)
+$recipientTypeDetails = $Group.RecipientTypeDetails
+$groupTypes = $Group.GroupTypes
+$isMailEnabled = $Group.MailEnabled
+$isSecurityEnabled = $Group.SecurityEnabled
+$containsUnified = $groupTypes -contains "Unified"
+$containsDynamic = $groupTypes -contains "DynamicMembership"
 
-        [Parameter()]
-        [switch]$ExpandedReport,
+# Use hash table lookup with for better performance
+if ($recipientTypeDetails -and $recipientTypeMap.ContainsKey($recipientTypeDetails)) {
+    return $recipientTypeMap[$recipientTypeDetails]  # Return the value if the key exists
+}
+else {
+    # Process other group types if not found in RecipientTypeDetails
+    if (-not $groupTypes) {
+        if ($isMailEnabled) { if ($isSecurityEnabled) { "Mail Security Group" } else { "Distribution Group" } } else { "Security Group" }
+    }
 
-        [Parameter(Mandatory = $false, HelpMessage = "Specify whether the selected GroupType should be exported")]
-        [switch]$GroupSummaryReport,
+    if ($isSecurityEnabled) {
+        if ($containsUnified -and $containsDynamic) { "Dynamic M365 Security Group" }
+        elseif ($containsUnified) { "M365 Security Group" }
+        elseif ($containsDynamic) { "Dynamic Security Group" }
+        else { "Security Group" }
+    }
 
-        [Parameter(Mandatory = $false, ParameterSetName = "FullReport", HelpMessage = "Specify whether the report should be created for all group types")]
-        [switch]$CreateReportForAllGroupsTypes
-
-    )
+    if ($containsUnified -and $containsDynamic) { "Dynamic M365 Group" }
+    elseif ($containsUnified) { "M365 Group" }
+    elseif ($containsDynamic) { "Dynamic Group" }
+    else { "Security Group" }
+}
+# }
