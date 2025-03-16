@@ -12,14 +12,16 @@ function Test-ValidFile {
     param ([string]$FilePath)
 
     if (-not (Test-Path $FilePath)) {
-        [System.Windows.MessageBox]::Show("Error: CSV file not found at $FilePath") | Out-Null
-        exit
+        [System.Windows.MessageBox]::Show("Error: File not found at $FilePath") | Out-Null
+        return $false
     }
 
-    if ((Import-Csv -Path $FilePath | Measure-Object).Count -eq 0) {
-        [System.Windows.MessageBox]::Show("Error: CSV file is empty or invalid.") | Out-Null
-        exit
+    if ((Get-Item $FilePath).Length -eq 0) {
+        [System.Windows.MessageBox]::Show("Error: File is empty.") | Out-Null
+        return $false
     }
+
+    return $true
 }
 
 # Function to check if input is valid in-memory data
@@ -28,20 +30,26 @@ function Test-ValidData {
 
     if (($Data | Measure-Object).Count -eq 0) {
         [System.Windows.MessageBox]::Show("Error: Provided data is empty or invalid.") | Out-Null
-        exit
+        return $false
     }
+
+    return $true
 }
 
-# Determine if InputData is a file path or an in-memory object
-if ($InputData -is [string] -and (Test-Path $InputData)) {
-    Test-ValidFile -FilePath $InputData
-}
-elseif ($InputData -is [System.Collections.IEnumerable]) {
-    Test-ValidData -Data $InputData
-}
-else {
-    [System.Windows.MessageBox]::Show("Error: Invalid input. Provide a valid CSV file path or in-memory data.") | Out-Null
-    exit
+# Function to load data from a file
+function Load-DataFromFile {
+    param ([string]$FilePath)
+
+    if ($FilePath -match '\.csv$') {
+        return Import-Csv -Path $FilePath
+    }
+    elseif ($FilePath -match '\.json$') {
+        return Get-Content -Path $FilePath | ConvertFrom-Json
+    }
+    else {
+        [System.Windows.MessageBox]::Show("Error: Unsupported file format. Only CSV and JSON files are supported.") | Out-Null
+        return $null
+    }
 }
 
 # Create Window
@@ -49,11 +57,89 @@ $window = New-Object System.Windows.Window
 $window.Title = "Unified Audit Log Viewer"
 $window.Width = 1400
 $window.Height = 800
+$window.MinWidth = 800
+$window.MinHeight = 500
 $window.WindowStartupLocation = "CenterScreen"
+
+# Enable drag-and-drop
+$window.AllowDrop = $true
+
+# DragEnter event handler
+$window.Add_DragEnter({
+        param ($sender, $e)
+
+        if ($e.Data.GetDataPresent([System.Windows.DataFormats]::FileDrop)) {
+            $e.Effects = [System.Windows.DragDropEffects]::Copy
+        }
+        else {
+            $e.Effects = [System.Windows.DragDropEffects]::None
+        }
+    })
+
+# Drop event handler
+$window.Add_Drop({
+        param ($sender, $e)
+
+        $filePaths = $e.Data.GetData([System.Windows.DataFormats]::FileDrop)
+
+        if ($filePaths.Count -gt 0) {
+            $filePath = $filePaths[0]
+
+            if (Test-ValidFile -FilePath $filePath) {
+                $global:logDataArray = Load-DataFromFile -FilePath $filePath
+
+                if ($null -ne $global:logDataArray) {
+                    Populate-Filters
+                    Update-TreeView
+                    Update-StatusBar -Message "File loaded successfully: $filePath"
+                }
+            }
+        }
+})
+
+
+################## Prameters #####################
+# Define standard button size
+$buttonWidth = 100
+$buttonHeight = 25
+$uIMargin = 5
+
+
+#################### Window Configuration #################################
+# Styling for a modern UI feel
 $window.FontFamily = "Segoe UI"
-$window.FontSize = 12
-# $treeView.FontSize = "14"
+$window.FontSize = 13   # Slightly larger for readability
 $window.FontWeight = "Normal"
+$window.Background = [System.Windows.Media.Brushes]::WhiteSmoke  # Light background for contrast
+
+# Enable resizing while maintaining structure
+$window.ResizeMode = "CanResize"
+
+# Optional: Add a subtle border around the window
+$window.BorderThickness = 1
+$window.BorderBrush = [System.Windows.Media.Brushes]::Gray
+
+# Optional: Add a drop shadow effect for a modern UI
+$shadowEffect = New-Object System.Windows.Media.Effects.DropShadowEffect
+$shadowEffect.BlurRadius = 10
+$shadowEffect.ShadowDepth = 5
+$shadowEffect.Opacity = 0.4
+$window.Effect = $shadowEffect
+
+$window.Add_KeyDown({
+    param ($sender, $e)
+
+    if ($e.Key -eq "C" -and ([System.Windows.Input.Keyboard]::IsKeyDown("LeftCtrl") -or [System.Windows.Input.Keyboard]::IsKeyDown("RightCtrl"))) {
+        # Select all text in the Preview Pane
+        $previewPane.SelectAll()
+        # Copy the selected text to the clipboard
+        $previewPane.Copy()
+        # Deselect the text
+        $previewPane.SelectionLength = 0
+        # Update the status bar
+        Update-StatusBar -Message "Text copied to clipboard."
+    }
+})
 
 # Create Grid
 $grid = New-Object System.Windows.Controls.Grid
@@ -70,14 +156,23 @@ $grid.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Prop
 $grid.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Property @{ Height = "*" }))      # Row 1: Main Content (stretches to fill remaining space)
 $grid.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Property @{ Height = "Auto" }))  # Row 2: Footer
 
-
+# Add Status Bar (NEW: Added for drag-and-drop support)
+$statusBar = New-Object System.Windows.Controls.TextBlock
+$statusBar.Width = 300
+$statusBar.Height = 20
+$statusBar.Margin = $uIMargin
+$statusBar.VerticalAlignment = "Bottom"
+$statusBar.HorizontalAlignment = "Left"
+$grid.Children.Add($statusBar)
+[System.Windows.Controls.Grid]::SetRow($statusBar, 2)
+[System.Windows.Controls.Grid]::SetColumn($statusBar, 1)
 
 
 ############t Tree View  Configuration ######################
 
 # Create the Grid for the TreeView section
 $treeViewGrid = New-Object System.Windows.Controls.Grid
-$treeViewGrid.Margin = "5"
+$treeViewGrid.Margin = $uIMargin
 $treeViewGrid.VerticalAlignment = "Stretch"
 $treeViewGrid.HorizontalAlignment = "Stretch"
 
@@ -108,7 +203,7 @@ $treeView.VerticalAlignment = "Stretch"  # Ensure TreeView stretches vertically
 $treeView.HorizontalAlignment = "Stretch"
 $treeView.Background = "LightYellow"
 $treeView.Padding = "10"
-$treeView.Margin = "5"
+$treeView.Margin = $uIMargin
 $treeView.FontFamily = "Segoe UI"
 $treeView.FontSize = "12"
 $treeView.BorderBrush = "DarkGreen"
@@ -118,31 +213,59 @@ $treeView.BorderThickness = "1"
 # Enable virtualization for TreeView
 $treeView.ItemsPanel = New-Object System.Windows.Controls.ItemsPanelTemplate -ArgumentList @(
     [System.Windows.FrameworkElementFactory]::new([System.Windows.Controls.VirtualizingStackPanel])
-$treeView.SetValue([System.Windows.Controls.VirtualizingStackPanel]::IsVirtualizingProperty, $true)
-$treeView.SetValue([System.Windows.Controls.VirtualizingStackPanel]::VirtualizationModeProperty, [System.Windows.Controls.VirtualizationMode]::Recycling))
+    $treeView.SetValue([System.Windows.Controls.VirtualizingStackPanel]::IsVirtualizingProperty, $true)
+    $treeView.SetValue([System.Windows.Controls.VirtualizingStackPanel]::VirtualizationModeProperty, [System.Windows.Controls.VirtualizationMode]::Recycling))
 
 
 # Add the TreeView to Row 1 of the TreeView Grid
 $treeViewGrid.Children.Add($treeView)
 [System.Windows.Controls.Grid]::SetRow($treeView, 1)
 
-# Event Handler for TreeView Selection Changed
-$treeView.Add_SelectedItemChanged({
-    $selectedItems = $treeView.SelectedItems
 
-    # Update the Preview Pane with the selected log entries
-    Update-PreviewPane -SelectedItems $selectedItems
+# # Event Handler for TreeView Selection Changed
+$treeView.Add_SelectedItemChanged({
+    $selectedItem = $treeView.SelectedItem
+
+    if ($selectedItem -and $selectedItem.Tag) {
+        # Update the Preview Pane with the selected log entry
+        Update-PreviewPane -SelectedItem $selectedItem.Tag
+    }
+    else {
+        $previewPane.Text = "No log entry selected."
+    }
 })
 
+$treeView.Add_MouseDoubleClick({
+    param ($sender, $e)
 
+    # Check if the TreeView is empty
+    if ($treeView.Items.Count -eq 0) {
+        # Open a file dialog to browse for a file
+        $openFileDialog = New-Object Microsoft.Win32.OpenFileDialog
+        $openFileDialog.Filter = "CSV Files (*.csv)|*.csv|JSON Files (*.json)|*.json"
+        $openFileDialog.Title = "Select a CSV or JSON file to load"
 
+        if ($openFileDialog.ShowDialog() -eq $true) {
+            $filePath = $openFileDialog.FileName
 
+            if (Test-ValidFile -FilePath $filePath) {
+                $global:logDataArray = Load-DataFromFile -FilePath $filePath
+
+                if ($null -ne $global:logDataArray) {
+                    Populate-Filters
+                    Update-TreeView
+                    Update-StatusBar -Message "File loaded successfully: $filePath"
+                }
+            }
+        }
+    }
+})
 
 ############ Preview Pane Configuration ##################
 
 # Create the Preview Pane Grid
 $previewPaneGrid = New-Object System.Windows.Controls.Grid
-$previewPaneGrid.Margin = "5"
+$previewPaneGrid.Margin = $uIMargin
 $previewPaneGrid.VerticalAlignment = "Stretch"
 $previewPaneGrid.HorizontalAlignment = "Stretch"
 
@@ -155,15 +278,46 @@ $grid.Children.Add($previewPaneGrid)
 [System.Windows.Controls.Grid]::SetRow($previewPaneGrid, 1)
 [System.Windows.Controls.Grid]::SetColumn($previewPaneGrid, 1)
 
+# Create a Grid for the Label and Copy Button
+$labelButtonGrid = New-Object System.Windows.Controls.Grid
+$labelButtonGrid.HorizontalAlignment = "Stretch"  # Ensure it stretches horizontally
+
+# Define columns for the Label and Button Grid
+$labelButtonGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{ Width = "Auto" })) # Column 0: Label (left-aligned)
+$labelButtonGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{ Width = "*" }))    # Column 1: Spacer (fills remaining space)
+$labelButtonGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{ Width = "Auto" })) # Column 2: Button (right-aligned)
+
 # Create the Label
 $previewPaneLabel = New-Object System.Windows.Controls.Label
 $previewPaneLabel.Content = "Audit Preview:"
+$previewPaneLabel.HorizontalAlignment = "Left"
 $previewPaneLabel.FontSize = 18
 $previewPaneLabel.FontWeight = "Bold"
+$previewPaneLabel.Margin = "0,0,10,0"  # Add some margin between the Label and the Copy Button
 
-# Add the Label to Row 0 of the Preview Pane Grid
-$previewPaneGrid.Children.Add($previewPaneLabel)
-[System.Windows.Controls.Grid]::SetRow($previewPaneLabel, 0)
+# Add the Label to Column 0 of the Label and Button Grid
+$labelButtonGrid.Children.Add($previewPaneLabel)
+[System.Windows.Controls.Grid]::SetColumn($previewPaneLabel, 0)
+
+# Add a Copy Button next to the Preview Pane
+$copyButton = New-Object System.Windows.Controls.Button
+$copyButton.Content = "Copy"
+$copyButton.Width = $buttonWidth
+$copyButton.Height = $buttonHeight
+$copyButton.Margin = $uIMargin
+$copyButton.HorizontalAlignment = "Right"
+$copyButton.ToolTip = "Copy the preview text to the clipboard"
+$copyButton.Add_Click({
+    # Select all text in the Preview Pane
+    $previewPane.SelectAll()
+    # Copy the selected text to the clipboard
+    $previewPane.Copy()
+    # Deselect the text
+    $previewPane.SelectionLength = 0
+    # Update the status bar
+    Update-StatusBar -Message "Text copied to clipboard."
+})
+
 
 # Create the Preview Pane (TextBox)
 $previewPane = New-Object System.Windows.Controls.TextBox
@@ -173,6 +327,22 @@ $previewPane.HorizontalScrollBarVisibility = "Auto"
 $previewPane.ToolTip = "Preview of the selected log entry."
 $previewPane.VerticalAlignment = "Stretch"  # Ensure it stretches vertically
 $previewPane.HorizontalAlignment = "Stretch"  # Ensure it stretches horizontally
+$previewPane.Padding = "10"
+$previewPane.Margin = $uIMargin
+
+$previewPane.BorderBrush = [System.Windows.Media.Brushes]::Gray
+$previewPane.BorderThickness = 1
+$previewPane.Background = [System.Windows.Media.Brushes]::White  # Subtle background color for contrast
+
+
+
+# Add the Copy Button to Column 2 of the Label and Button Grid
+$labelButtonGrid.Children.Add($copyButton)
+[System.Windows.Controls.Grid]::SetColumn($copyButton, 2)
+
+# Add the Label and Button Grid to Row 0 of the Preview Pane Grid
+$previewPaneGrid.Children.Add($labelButtonGrid)
+[System.Windows.Controls.Grid]::SetRow($labelButtonGrid, 0)
 
 # Add the Preview Pane (TextBox) to Row 1 of the Preview Pane Grid
 $previewPaneGrid.Children.Add($previewPane)
@@ -184,7 +354,7 @@ $previewPaneGrid.Children.Add($previewPane)
 
 # Create the Detailed Info Pane Grid
 $detailedInfoPaneGrid = New-Object System.Windows.Controls.Grid
-$detailedInfoPaneGrid.Margin = "5"
+$detailedInfoPaneGrid.Margin = $uIMargin
 $detailedInfoPaneGrid.VerticalAlignment = "Stretch"
 $detailedInfoPaneGrid.HorizontalAlignment = "Stretch"
 
@@ -214,8 +384,14 @@ $detailedInfoTextBox.VerticalAlignment = "Stretch"  # Ensure it stretches vertic
 $detailedInfoTextBox.HorizontalAlignment = "Stretch"  # Ensure it stretches horizontally
 $detailedInfoTextBox.VerticalScrollBarVisibility = "Auto"
 $detailedInfoTextBox.HorizontalScrollBarVisibility = "Auto"
-# $detailedInfoTextBox.Margin = "5"  # Add margin for better spacing
+$detailedInfoTextBox.Padding = "10"
+$detailedInfoTextBox.Margin = $uIMargin
 $detailedInfoTextBox.ToolTip = "View detailed information about the selected item."
+$detailedInfoTextBox.TextWrapping = "Wrap"
+$detailedInfoTextBox.BorderBrush = [System.Windows.Media.Brushes]::Gray
+$detailedInfoTextBox.BorderThickness = 1
+$detailedInfoTextBox.Background = [System.Windows.Media.Brushes]::WhiteSmoke
+
 
 # Add the TextBox to Row 1 of the Detailed Info Pane Grid
 $detailedInfoPaneGrid.Children.Add($detailedInfoTextBox)
@@ -240,7 +416,7 @@ $searchPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDef
 $searchBox = New-Object System.Windows.Controls.TextBox
 $searchBox.Width = [double]::NaN  # Auto-size width to fill available space
 $searchBox.Height = 30
-$searchBox.Margin = "5"
+$searchBox.Margin = $uIMargin
 $searchBox.VerticalAlignment = "Center"
 $searchBox.HorizontalAlignment = "Stretch"  # Stretch to fill available space
 $searchBox.TextAlignment = "Left"
@@ -255,7 +431,7 @@ $searchBox.Padding = "5"
 $filterButton = New-Object System.Windows.Controls.Button
 $filterButton.Content = "Keyword"
 $filterButton.Height = 30
-$filterButton.Margin = "5"
+$filterButton.Margin = $uIMargin
 $filterButton.VerticalAlignment = "Center"
 $filterButton.HorizontalAlignment = "Left"
 $filterButton.FontSize = "14"
@@ -263,8 +439,8 @@ $filterButton.Padding = "10,5,10,5"  # Inner padding (left, top, right, bottom)
 $filterButton.BorderThickness = "1"
 $filterButton.ToolTip = "Filter log entries based on the search term/keyword."
 $filterButton.Add_Click({
-    Update-TreeView  # Call the filter function
-})
+        Update-TreeView  # Call the filter function
+    })
 
 
 # Add the search components to the grid
@@ -296,7 +472,7 @@ $grid.Children.Add($filterPanel)
 # Add Parent Label "Filters"
 $filtersLabel = New-Object System.Windows.Controls.Label
 $filtersLabel.Content = "Filters:"
-$filtersLabel.Margin = "5"
+$filtersLabel.Margin = $uIMargin
 $filtersLabel.VerticalAlignment = "Center"
 $filtersLabel.FontSize = "16"
 $filtersLabel.FontWeight = "Bold"
@@ -305,41 +481,89 @@ $filterPanel.Children.Add($filtersLabel)
 # Group RecordType Label and Dropdown
 $recordTypeGroup = New-Object System.Windows.Controls.StackPanel
 $recordTypeGroup.Orientation = "Horizontal"
-$recordTypeGroup.Margin = "5"
+$recordTypeGroup.Margin = $uIMargin
 $recordTypeGroup.VerticalAlignment = "Center"
 
 # Add Label for RecordType Filter
 $recordTypeLabel = New-Object System.Windows.Controls.Label
 $recordTypeLabel.Content = "RecordType:"
-$recordTypeLabel.Margin = "5"
+$recordTypeLabel.Margin = $uIMargin
 $recordTypeLabel.VerticalAlignment = "Center"
 $recordTypeLabel.FontSize = "14"
 
 # Add RecordType Filter Dropdown
 $recordTypeFilter = New-Object System.Windows.Controls.ComboBox
 $recordTypeFilter.Width = 150
-$recordTypeFilter.Height = 25
-$recordTypeFilter.Margin = "5"
+$recordTypeFilter.Height = $buttonHeight
+$recordTypeFilter.Margin = $uIMargin
 $recordTypeFilter.ToolTip = "Filter by RecordType"
 $recordTypeFilter.FontSize = "14"
+$recordTypeFilter.IsEditable = $true  # Allow text input
+$recordTypeFilter.IsReadOnly = $true  # Prevent editing the text
+$recordTypeFilter.StaysOpenOnEdit = $true  # Keep dropdown open when clicking
 $recordTypeFilter.Add_SelectionChanged({
     Update-TreeView
 })
+
+# Create a StackPanel to hold CheckBoxes inside the ComboBox
+$checkBoxPanel = New-Object System.Windows.Controls.StackPanel
+
+
+
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+
+# Add RecordType options with CheckBoxes
+$recordTypes = @("Type1", "Type2", "Type3", "Type4")  # Example RecordTypes
+foreach ($type in $recordTypes) {
+    $checkBox = New-Object System.Windows.Controls.CheckBox
+    $checkBox.Content = $type
+    $checkBox.Margin = "2"
+    $checkBox.Add_Checked({
+        Update-SelectedRecordTypes
+    })
+    $checkBox.Add_Unchecked({
+        Update-SelectedRecordTypes
+    })
+    $checkBoxPanel.Children.Add($checkBox)
+}
+
+# Add the StackPanel to the ComboBox
+$recordTypeFilter.Items.Add($checkBoxPanel)
+
+# Function to update the selected RecordTypes
+function Update-SelectedRecordTypes {
+    $selectedRecordTypes = $checkBoxPanel.Children | Where-Object { $_.IsChecked -eq $true } | ForEach-Object { $_.Content }
+    $recordTypeFilter.Text = $selectedRecordTypes -join ", "  # Display selected items in the ComboBox
+    Update-TreeView
+}
+
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+
+
+
+
+
+
+
 
 # Add Label and Dropdown to the RecordType Group
 $recordTypeGroup.Children.Add($recordTypeLabel)
 $recordTypeGroup.Children.Add($recordTypeFilter)
 
+
+
 # Group Operations Label and Dropdown
 $operationsGroup = New-Object System.Windows.Controls.StackPanel
 $operationsGroup.Orientation = "Horizontal"
-$operationsGroup.Margin = "5"
+$operationsGroup.Margin = $uIMargin
 $operationsGroup.VerticalAlignment = "Center"
 
 # Add Label for Operations Filter
 $operationsLabel = New-Object System.Windows.Controls.Label
 $operationsLabel.Content = "Operation:"
-$operationsLabel.Margin = "5"
+$operationsLabel.Margin = $uIMargin
 $operationsLabel.VerticalAlignment = "Center"
 $operationsLabel.FontSize = "14"
 
@@ -347,12 +571,12 @@ $operationsLabel.FontSize = "14"
 $operationsFilter = New-Object System.Windows.Controls.ComboBox
 $operationsFilter.Width = 150
 $operationsFilter.Height = 25
-$operationsFilter.Margin = "5"
+$operationsFilter.Margin = $uIMargin
 $operationsFilter.ToolTip = "Filter by Operations"
 $operationsFilter.FontSize = "14"
 $operationsFilter.Add_SelectionChanged({
-    Update-TreeView
-})
+        Update-TreeView
+    })
 
 # Add Label and Dropdown to the Operations Group
 $operationsGroup.Children.Add($operationsLabel)
@@ -361,35 +585,35 @@ $operationsGroup.Children.Add($operationsFilter)
 # Group Date Range Label, Start Date, and End Date
 $dateRangeGroup = New-Object System.Windows.Controls.StackPanel
 $dateRangeGroup.Orientation = "Horizontal"
-$dateRangeGroup.Margin = "5"
+$dateRangeGroup.Margin = $uIMargin
 $dateRangeGroup.VerticalAlignment = "Center"
 
 # Add Label for Date Range Filter
 $dateRangeLabel = New-Object System.Windows.Controls.Label
 $dateRangeLabel.Content = "Date Range:"
-$dateRangeLabel.Margin = "5"
+$dateRangeLabel.Margin = $uIMargin
 $dateRangeLabel.VerticalAlignment = "Center"
 $dateRangeLabel.FontSize = "14"
 
 # Add Start Date Picker
 $startDatePicker = New-Object System.Windows.Controls.DatePicker
 $startDatePicker.Width = 110
-$startDatePicker.Margin = "5"
+$startDatePicker.Margin = $uIMargin
 $startDatePicker.ToolTip = "Select start date"
 $startDatePicker.FontSize = "14"
 $startDatePicker.Add_SelectedDateChanged({
-    Update-TreeView
-})
+        Update-TreeView
+    })
 
 # Add End Date Picker
 $endDatePicker = New-Object System.Windows.Controls.DatePicker
 $endDatePicker.Width = 110
-$endDatePicker.Margin = "5"
+$endDatePicker.Margin = $uIMargin
 $endDatePicker.ToolTip = "Select end date"
 $endDatePicker.FontSize = "14"
 $endDatePicker.Add_SelectedDateChanged({
-    Update-TreeView
-})
+        Update-TreeView
+    })
 
 # Add Date Range components to the Date Range Group
 $dateRangeGroup.Children.Add($dateRangeLabel)
@@ -399,47 +623,39 @@ $dateRangeGroup.Children.Add($endDatePicker)
 # Group Time Label, Start Time, and End Time
 $timeGroup = New-Object System.Windows.Controls.StackPanel
 $timeGroup.Orientation = "Horizontal"
-$timeGroup.Margin = "5"
+$timeGroup.Margin = $uIMargin
 $timeGroup.VerticalAlignment = "Center"
 
 # Add Label for Time Filter
 $timeLabel = New-Object System.Windows.Controls.Label
 $timeLabel.Content = "Time:"
-$timeLabel.Margin = "5"
+$timeLabel.Margin = $uIMargin
 $timeLabel.VerticalAlignment = "Center"
 $timeLabel.FontSize = "14"
 
 # Add Start Time ComboBox
 $startTimeComboBox = New-Object System.Windows.Controls.ComboBox
 $startTimeComboBox.Width = 80
-$startTimeComboBox.Margin = "5"
+$startTimeComboBox.Margin = $uIMargin
 $startTimeComboBox.ToolTip = "Select start time"
 $startTimeComboBox.IsEditable = $true  # Allow manual input
 $startTimeComboBox.Text = "00:00:00"   # Default start time
 $startTimeComboBox.FontSize = "14"
-# $startTimeComboBox.Add_TextChanged({
-#     Update-TreeView
-# })
-# Add TextChanged event handler for Start Time ComboBox
-$startTimeComboBox.AddHandler([System.Windows.Controls.TextBox]::TextChangedEvent, [System.Windows.RoutedEventHandler]{
-    Update-TreeView
-})
+$startTimeComboBox.AddHandler([System.Windows.Controls.TextBox]::TextChangedEvent, [System.Windows.RoutedEventHandler] {
+        Update-TreeView
+    })
 
 # Add End Time ComboBox
 $endTimeComboBox = New-Object System.Windows.Controls.ComboBox
 $endTimeComboBox.Width = 80
-$endTimeComboBox.Margin = "5"
+$endTimeComboBox.Margin = $uIMargin
 $endTimeComboBox.ToolTip = "Select end time"
 $endTimeComboBox.IsEditable = $true    # Allow manual input
 $endTimeComboBox.Text = "23:59:59"     # Default end time
 $endTimeComboBox.FontSize = "14"
-# $endTimeComboBox.Add_TextChanged({
-#     Update-TreeView
-# })
-# Add TextChanged event handler for End Time ComboBox
-$endTimeComboBox.AddHandler([System.Windows.Controls.TextBox]::TextChangedEvent, [System.Windows.RoutedEventHandler]{
-    Update-TreeView
-})
+$endTimeComboBox.AddHandler([System.Windows.Controls.TextBox]::TextChangedEvent, [System.Windows.RoutedEventHandler] {
+        Update-TreeView
+    })
 
 # Populate ComboBoxes with time values
 $timeValues = @()
@@ -484,25 +700,25 @@ $grid.Children.Add($buttonPanel)
 # Add Export to JSON Button
 $exportJsonButton = New-Object System.Windows.Controls.Button
 $exportJsonButton.Content = "Export to JSON"
-$exportJsonButton.Width = 100
-$exportJsonButton.Height = 25
-$exportJsonButton.Margin = "5"
+$exportJsonButton.Width = $buttonWidth
+$exportJsonButton.Height = $buttonHeight
+$exportJsonButton.Margin = $uIMargin
 $exportJsonButton.ToolTip = "Export the displayed data to a JSON file."
 $exportJsonButton.Add_Click({
-        $saveFileDialog = New-Object Microsoft.Win32.SaveFileDialog
-        $saveFileDialog.Filter = "JSON Files (*.json)|*.json"
-        if ($saveFileDialog.ShowDialog() -eq $true) {
-            $logDataArray | ConvertTo-Json -Depth 10 | Out-File -FilePath $saveFileDialog.FileName
-            [System.Windows.MessageBox]::Show("Data exported to JSON successfully!") | Out-Null
-        }
-    })
+    $saveFileDialog = New-Object Microsoft.Win32.SaveFileDialog
+    $saveFileDialog.Filter = "JSON Files (*.json)|*.json"
+    if ($saveFileDialog.ShowDialog() -eq $true) {
+        $logDataArray | ConvertTo-Json -Depth 10 | Out-File -FilePath $saveFileDialog.FileName
+        [System.Windows.MessageBox]::Show("Data exported to JSON successfully!") | Out-Null
+    }
+})
 
 # Add Export to CSV Button
 $exportCsvButton = New-Object System.Windows.Controls.Button
 $exportCsvButton.Content = "Export to CSV"
-$exportCsvButton.Width = 100
-$exportCsvButton.Height = 25
-$exportCsvButton.Margin = "5"
+$exportCsvButton.Width = $buttonWidth
+$exportCsvButton.Height = $buttonHeight
+$exportCsvButton.Margin = $uIMargin
 $exportCsvButton.ToolTip = "Export the displayed data to a CSV file."
 $exportCsvButton.Add_Click({
         $saveFileDialog = New-Object Microsoft.Win32.SaveFileDialog
@@ -516,38 +732,61 @@ $exportCsvButton.Add_Click({
 # Add Refresh Button
 $refreshButton = New-Object System.Windows.Controls.Button
 $refreshButton.Content = "Refresh"
-$refreshButton.Width = 75
-$refreshButton.Height = 25
-$refreshButton.Margin = "5"
+$refreshButton.Width = $buttonWidth
+$refreshButton.Height = $buttonHeight
+$refreshButton.Margin = $uIMargin
 $refreshButton.ToolTip = "Refresh reloads the data sets"
 $refreshButton.Add_Click({
-        # Clear the TreeView
-        $treeView.Items.Clear()
+    # Clear all filters
+    $searchBox.Text = ""
+    $recordTypeFilter.SelectedIndex = -1
+    $operationsFilter.SelectedIndex = -1
+    $startDatePicker.SelectedDate = $null
+    $endDatePicker.SelectedDate = $null
+    $startTimeComboBox.Text = "00:00:00"
+    $endTimeComboBox.Text = "23:59:59"
 
-        # Reload the data
-        $logDataArray = Load-AuditLogData -DataInput $InputData
+    # Clear the TreeView
+    $treeView.Items.Clear()
 
-        # Repopulate filters
+    # Reload the data if a file was previously loaded via drag-and-drop or double-click
+    if ($global:logDataArray) {
+        $global:logDataArray = $global:logDataArray  # Reuse existing data
+    }
+    else {
+        # If no data is loaded, prompt the user to select a file
+        $openFileDialog = New-Object Microsoft.Win32.OpenFileDialog
+        $openFileDialog.Filter = "CSV Files (*.csv)|*.csv|JSON Files (*.json)|*.json"
+        $openFileDialog.Title = "Select a CSV or JSON file to load"
+
+        if ($openFileDialog.ShowDialog() -eq $true) {
+            $filePath = $openFileDialog.FileName
+
+            if (Test-ValidFile -FilePath $filePath) {
+                $global:logDataArray = Load-DataFromFile -FilePath $filePath
+            }
+        }
+    }
+
+    if ($null -ne $global:logDataArray) {
         Populate-Filters
-
-        # Reset date pickers
-        $startDatePicker.SelectedDate = $null
-        $endDatePicker.SelectedDate = $null
-
-        # Reapply filters (including date range)
         Update-TreeView
+        Update-StatusBar -Message "Data refreshed successfully!"
+    }
+    else {
+        Update-StatusBar -Message "No data loaded."
+    }
+})
 
-        # Update status bar
-        $statusBar.Text = "Data refreshed successfully!"
-    })
+
 
 # Add Theme Toggle Button
 $themeButton = New-Object System.Windows.Controls.Button
 $themeButton.Content = "Toggle Theme"
-$themeButton.Width = 100
-$themeButton.Height = 25
+$themeButton.Width = $buttonWidth
+$themeButton.Height = $buttonHeight
 $themeButton.ToolTip = "Change UI to dark mode"
-$themeButton.Margin = "5"
+$themeButton.Margin = $uIMargin
 $themeButton.Add_Click({
         if ($window.Background -eq [System.Windows.Media.Brushes]::White) {
             $window.Background = [System.Windows.Media.Brushes]::Black
@@ -563,9 +802,9 @@ $themeButton.Add_Click({
 # Add Expand/Collapse Buttons
 $expandButton = New-Object System.Windows.Controls.Button
 $expandButton.Content = "Expand All"
-$expandButton.Width = 75
-$expandButton.Height = 25
-$expandButton.Margin = "5"
+$expandButton.Width = $buttonWidth
+$expandButton.Height = $buttonHeight
+$expandButton.Margin = $uIMargin
 $expandButton.ToolTip = "Expand all collapsed logs"
 $expandButton.Add_Click({
         foreach ($item in $treeView.Items) {
@@ -575,21 +814,22 @@ $expandButton.Add_Click({
 
 $collapseButton = New-Object System.Windows.Controls.Button
 $collapseButton.Content = "Collapse All"
-$collapseButton.Width = 75
-$collapseButton.Height = 25
-$collapseButton.Margin = "5"
+$collapseButton.Width = $buttonWidth
+$collapseButton.Height = $buttonHeight
+$collapseButton.Margin = $uIMargin
 $collapseButton.ToolTip = "Collapse all expanded logs"
 $collapseButton.Add_Click({
         foreach ($item in $treeView.Items) {
             $item.IsExpanded = $false
         }
-})
+    })
 
 $clearFiltersButton = New-Object System.Windows.Controls.Button
 $clearFiltersButton.Content = "Clear Filters"
-$clearFiltersButton.Width = 75
-$clearFiltersButton.Height = 25
-    $clearFiltersButton.Add_Click({
+$clearFiltersButton.Width = $buttonWidth
+$clearFiltersButton.Height = $buttonHeight
+$clearFiltersButton.Margin = $uIMargin
+$clearFiltersButton.Add_Click({
         $searchBox.Text = ""
         $recordTypeFilter.SelectedIndex = 0
         $operationsFilter.SelectedIndex = 0
@@ -600,6 +840,33 @@ $clearFiltersButton.Height = 25
         Update-TreeView
 })
 
+# Add Clear Audit Data Button (NEW: Added for clearing all data)
+$clearLoadedData = New-Object System.Windows.Controls.Button
+$clearLoadedData.Content = "Clear Audit Data"
+$clearLoadedData.Width = $buttonWidth
+$clearLoadedData.Height = $buttonHeight
+$clearLoadedData.Margin = $uIMargin
+$clearLoadedData.ToolTip = "Clear all loaded data and reset the UI"
+$clearLoadedData.Add_Click({
+    # Clear all filters
+    $searchBox.Text = ""
+    $recordTypeFilter.SelectedIndex = -1
+    $operationsFilter.SelectedIndex = -1
+    $startDatePicker.SelectedDate = $null
+    $endDatePicker.SelectedDate = $null
+    $startTimeComboBox.Text = "00:00:00"
+    $endTimeComboBox.Text = "23:59:59"
+
+    # Clear the TreeView
+    $treeView.Items.Clear()
+
+    # Clear the loaded data
+    $global:logDataArray = $null
+
+    # Update the status bar
+    Update-StatusBar -Message "All data cleared. Double-click the TreeView to load new data."
+})
+
 # update
 
 $buttonPanel.Children.Add($exportJsonButton)
@@ -607,34 +874,75 @@ $buttonPanel.Children.Add($exportCsvButton)
 $buttonPanel.Children.Add($refreshButton)
 $buttonPanel.Children.Add($expandButton)
 $buttonPanel.Children.Add($collapseButton)
-$buttonPanel.Children.Add($themeButton)
 $buttonPanel.Children.Add($clearFiltersButton)
-
+$buttonPanel.Children.Add($clearLoadedData)
+$buttonPanel.Children.Add($themeButton)
 
 ###################################################
 
-# Add Progress Bar
-$progressBar = New-Object System.Windows.Controls.ProgressBar
-$progressBar.Width = 300
-$progressBar.Height = 20
-$progressBar.HorizontalAlignment = "Center"
-$progressBar.VerticalAlignment = "Bottom"
-$progressBar.Margin = "10"
-$grid.Children.Add($progressBar)
-[System.Windows.Controls.Grid]::SetRow($progressBar, 2)
-[System.Windows.Controls.Grid]::SetColumn($progressBar, 0)
+# Create a Grid for the status bar and progress bar
+$statusBarGrid = New-Object System.Windows.Controls.Grid
+$statusBarGrid.Margin = $uIMargin
+$statusBarGrid.VerticalAlignment = "Bottom"
+$statusBarGrid.HorizontalAlignment = "Stretch"
+$statusBarGrid.Background = [System.Windows.Media.Brushes]::LightGray
 
-# Add Status Bar
+# Define columns for the status bar grid
+$statusBarGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{ Width = "Auto" }))  # Column 0: Status text
+$statusBarGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{ Width = "*" }))    # Column 1: Spacer
+$statusBarGrid.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition -Property @{ Width = "Auto" }))  # Column 2: Progress bar
+
+# Add the status bar grid to the main grid
+$grid.Children.Add($statusBarGrid)
+[System.Windows.Controls.Grid]::SetRow($statusBarGrid, 2)
+[System.Windows.Controls.Grid]::SetColumnSpan($statusBarGrid, 3)  # Span across all columns
+
+# Create a TextBlock for status messages
 $statusBar = New-Object System.Windows.Controls.TextBlock
-$statusBar.Width = 300
-$statusBar.Height = 20
-$statusBar.Margin = "10"
-$statusBar.VerticalAlignment = "Bottom"
+$statusBar.VerticalAlignment = "Center"
 $statusBar.HorizontalAlignment = "Left"
-$grid.Children.Add($statusBar)
-[System.Windows.Controls.Grid]::SetRow($statusBar, 2)
-[System.Windows.Controls.Grid]::SetColumn($statusBar, 1)
+$statusBar.Text = "Unified log analyzer application started successfully."
+$statusBar.FontSize = "14"
+$statusBar.FontWeight = "Normal"
+$statusBar.Margin = "5,0,0,0"
 
+# Add the TextBlock to the first column of the status bar grid
+$statusBarGrid.Children.Add($statusBar)
+[System.Windows.Controls.Grid]::SetColumn($statusBar, 0)
+
+# Create a ProgressBar for loading/processing status
+$progressBar = New-Object System.Windows.Controls.ProgressBar
+$progressBar.Width = 200
+$progressBar.Height = $buttonHeight
+$progressBar.Margin = $uIMargin
+$progressBar.VerticalAlignment = "Center"
+$progressBar.HorizontalAlignment = "Right"
+$progressBar.IsIndeterminate = $false  # Set to $true for indeterminate progress
+$progressBar.Visibility = "Visible"  # Visible by default
+
+# Add the ProgressBar to the last column of the status bar grid
+$statusBarGrid.Children.Add($progressBar)
+[System.Windows.Controls.Grid]::SetColumn($progressBar, 2)
+
+# Example: Update status bar with a message and progress
+function Update-StatusBar {
+    param (
+        [string]$Message,
+        [int]$Progress = -1  # -1 means no progress bar
+    )
+
+    # Update the status text
+    $statusBar.Text = $Message
+
+    # # Update the progress bar value
+    # if ($Progress -ge 0) {
+    #     $progressBar.Value = $Progress
+    #     $progressBar.Visibility = "Visible"
+    # }
+    # else {
+    #     $progressBar.Visibility = "Collapsed"
+    # }
+}
 
 
 # Function to Update the Preview Pane
@@ -713,20 +1021,6 @@ function Update-PreviewPane {
     # Update the Preview Pane
     $previewPane.Text = $previewText -join ""
 }
-
-# # Event Handler for TreeView Selection Changed
-$treeView.Add_SelectedItemChanged({
-        $selectedItem = $treeView.SelectedItem
-
-        if ($selectedItem -and $selectedItem.Tag) {
-            # Update the Preview Pane with the selected log entry
-            Update-PreviewPane -SelectedItem $selectedItem.Tag
-        }
-        else {
-            $previewPane.Text = "No log entry selected."
-        }
-    })
-
 
 
 
@@ -857,7 +1151,7 @@ function Load-AuditLogData {
     param ([object]$DataInput)
 
     $progressBar.Value = 0
-    $statusBar.Text = "Loading data..."
+    Update-StatusBar -Message "Loading data..."
 
     if ($DataInput -is [string] -and (Test-Path $DataInput)) {
         $ParsedDataInput = Import-Csv -Path $DataInput
@@ -877,17 +1171,12 @@ function Load-AuditLogData {
     $ParsedDataInput | ForEach-Object {
         $currentCount++
         $progressBar.Value = ($currentCount / $totalCount) * 100
-        $statusBar.Text = "Loading item $currentCount of $totalCount..."
-
-        $LogEntry = $_
+        Update-StatusBar -Message "Loading item $currentCount of $totalCount..."
 
         $_.PSObject.Properties | ForEach-Object {
-
-
             if ($_.Name -eq "AuditData") {
-                Write-Host $_
                 try {
-                    $_.Value = ConvertFrom-Json $LogEntry.AuditData -ErrorAction Stop
+                    $_.Value = ConvertFrom-Json $_.Value -ErrorAction Stop
                 }
                 catch {
                     Write-Warning "Failed to parse AuditData JSON for entry"
@@ -899,10 +1188,12 @@ function Load-AuditLogData {
     }
 
     $progressBar.Value = 100
-    $statusBar.Text = "Data loaded successfully!"
+    Update-StatusBar -Message "Data loaded successfully!"
 
     return $logDataArray
 }
+
+
 
 # Function to populate dropdowns with unique values
 function Populate-Filters {
@@ -974,15 +1265,25 @@ function Update-TreeView {
 
     foreach ($logData in $logDataArray) {
         $logDate = $null
-        if ([string]::IsNullOrEmpty($logData.CreationDate) -or ([Datetime]$logData.CreationDate -is [datetime])) {
-            try {
-                # $logDate = [datetime]$logData.CreationDate -f "MM/dd/yyyy HH:mm:ss"
-                $logDate = [datetime]::ParseExact($logData.CreationDate, "M/d/yyyy h:mm:ss tt", $null)
-                # Write-Host "The Log Date time is $($logDate)"
+
+        if (-not [string]::IsNullOrEmpty($logData.CreationDate)) {
+            $dateFormats = @("M/d/yyyy h:mm:ss tt", "MM/dd/yyyy HH:mm:ss", "yyyy-MM-ddTHH:mm:ss", "yyyy/MM/dd HH:mm:ss")
+
+            $parsedSuccessfully = $false
+            foreach ($format in $dateFormats) {
+                try {
+                    $logDate = [datetime]::ParseExact($logData.CreationDate, $format, $null)
+                    $parsedSuccessfully = $true
+                    break  # Exit loop once parsing succeeds
+                }
+                catch {
+                    continue  # Try the next format
+                }
             }
-            catch {
+
+            if (-not $parsedSuccessfully) {
                 Write-Warning "Failed to parse CreationDate for entry: $($logData.CreationDate)"
-                continue  # Skip this entry if the date is invalid
+                continue  # Skip this entry if parsing fails
             }
         }
 
@@ -1038,14 +1339,27 @@ function Update-TreeView {
 }
 
 
-# Load data from either CSV file or in-memory object
-$logDataArray = Load-AuditLogData -DataInput $InputData
+# Load initial data if provided via -InputData
+if ($PSBoundParameters.ContainsKey('InputData')) {
+    if ($InputData -is [string] -and (Test-Path $InputData)) {
+        # Load from CSV file
+        $global:logDataArray = Load-DataFromFile -FilePath $InputData
+    }
+    elseif ($InputData -is [System.Collections.IEnumerable]) {
+        # Use in-memory data
+        $global:logDataArray = $InputData
+    }
+    else {
+        [System.Windows.MessageBox]::Show("Error: Invalid input. Provide a valid CSV file path or in-memory data.") | Out-Null
+        exit
+    }
 
-# Populate dropdowns with unique values
-Populate-Filters
-
-# Populate TreeView
-Update-TreeView
+    if ($null -ne $global:logDataArray) {
+        Populate-Filters
+        Update-TreeView
+        Update-StatusBar -Message "Data loaded successfully from input parameter."
+    }
+}
 
 # Show Window
 $window.ShowDialog()

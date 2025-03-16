@@ -102,6 +102,7 @@ Specifies the type of groups to be included in the report. Only one value can be
 ## OUTPUTS
 
 The function generates a report file at the specified `ReportPath`. The content of the report depends on the parameters provided:
+
 - If `-ExpandedReport` is used, the report formats each owner on a separate row.
 
 ## NOTES

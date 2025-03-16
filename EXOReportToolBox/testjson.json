@@ -1,0 +1,50 @@
+[
+    {
+        "RecordType":  "ExchangeAdmin",
+        "CreationDate":  "\/Date(1740955397000)\/",
+        "UserIds":  "NT SERVICE\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)",
+        "Operations":  "Set-ConditionalAccessPolicy",
+        "AuditData":  "{\"AppAccessContext\":{},\"CreationTime\":\"2025-03-02T22:43:17\",\"Id\":\"7d29b563-e2b8-47b2-b87e-08dd59db9fd4\",\"Operation\":\"Set-ConditionalAccessPolicy\",\"OrganizationId\":\"70e7f470-ed25-47f5-aa2f-096f0f44c831\",\"RecordType\":1,\"ResultStatus\":\"True\",\"UserKey\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"UserType\":3,\"Version\":1,\"Workload\":\"Exchange\",\"ObjectId\":\"M365x44824121.onmicrosoft.com\\\\ea138e24-f752-40d5-84b8-2ed4e9521a0d\",\"UserId\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"AppId\":\"\",\"AppPoolName\":\"MSExchangeServiceHostNetCore\",\"ClientAppId\":\"\",\"CorrelationID\":\"\",\"ExternalAccess\":true,\"OrganizationName\":\"M365x44824121.onmicrosoft.com\",\"OriginatingServer\":\"LV1P223MB1280 (15.20.8489.024)\",\"Parameters\":[{\"Name\":\"Identity\",\"Value\":\"M365x44824121.onmicrosoft.com\\\\ea138e24-f752-40d5-84b8-2ed4e9521a0d\"},{\"Name\":\"PolicyDetails\",\"Value\":\"{\\\"Version\\\":1,\\\"CreatedDateTime\\\":\\\"2024-09-24T09:55:20.9653711Z\\\",\\\"ModifiedDateTime\\\":\\\"2024-12-11T16:56:48.8376396Z\\\",\\\"TemplateId\\\":\\\"4200930c-0da2-4e33-ca02-100000000000\\\",\\\"State\\\":\\\"Disabled\\\",\\\"Conditions\\\":{\\\"Applications\\\":{\\\"Include\\\":[{\\\"Applications\\\":[\\\"All\\\"]}]},\\\"Users\\\":{\\\"Include\\\":[{\\\"Users\\\":[\\\"All\\\"]}],\\\"Exclude\\\":[{\\\"Users\\\":[\\\"3f35661a-fbe1-4e3a-b07c-1f0af8ad34a7\\\"]}]},\\\"SignInRisks\\\":{\\\"Include\\\":[{\\\"SignInRisks\\\":[\\\"High\\\",\\\"Medium\\\",\\\"Low\\\"]}]}},\\\"Controls\\\":[{\\\"Control\\\":[\\\"Mfa\\\"]}],\\\"SessionControls\\\":[\\\"SignInFrequency\\\"],\\\"SignInFrequencyType\\\":30,\\\"EnforceAllPoliciesForEas\\\":true,\\\"IncludeOtherLegacyClientTypeForEvaluation\\\":true}\"},{\"Name\":\"PolicyLastUpdatedTime\",\"Value\":\"3\\/2\\/2025 10:43:16 PM\"},{\"Name\":\"TenantDefaultPolicy\",\"Value\":\"\"},{\"Name\":\"DisplayName\",\"Value\":\"Reauthentication on signin risk for Microsoft partners and vendors\"},{\"Name\":\"PolicyIdentifierString\",\"Value\":\"\"}],\"RequestId\":\"4b790c7c-9dbb-4365-9f86-9686a8081572\"}",
+        "ResultIndex":  1,
+        "ResultCount":  129,
+        "Identity":  "7d29b563-e2b8-47b2-b87e-08dd59db9fd4",
+        "IsValid":  true,
+        "ObjectState":  "Unchanged"
+    },
+    {
+        "RecordType":  "ExchangeAdmin",
+        "CreationDate":  "\/Date(1740955396000)\/",
+        "UserIds":  "NT SERVICE\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)",
+        "Operations":  "Set-ConditionalAccessPolicy",
+        "AuditData":  "{\"AppAccessContext\":{},\"CreationTime\":\"2025-03-02T22:43:16\",\"Id\":\"62a817b2-643f-4421-1d71-08dd59db9f37\",\"Operation\":\"Set-ConditionalAccessPolicy\",\"OrganizationId\":\"70e7f470-ed25-47f5-aa2f-096f0f44c831\",\"RecordType\":1,\"ResultStatus\":\"True\",\"UserKey\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"UserType\":3,\"Version\":1,\"Workload\":\"Exchange\",\"ObjectId\":\"M365x44824121.onmicrosoft.com\\\\39df3900-f876-4d7a-9527-23f90b953372\",\"UserId\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"AppId\":\"\",\"AppPoolName\":\"MSExchangeServiceHostNetCore\",\"ClientAppId\":\"\",\"CorrelationID\":\"\",\"ExternalAccess\":true,\"OrganizationName\":\"M365x44824121.onmicrosoft.com\",\"OriginatingServer\":\"LV1P223MB1280 (15.20.8489.024)\",\"Parameters\":[{\"Name\":\"Identity\",\"Value\":\"M365x44824121.onmicrosoft.com\\\\39df3900-f876-4d7a-9527-23f90b953372\"},{\"Name\":\"PolicyDetails\",\"Value\":\"{\\\"Version\\\":1,\\\"CreatedDateTime\\\":\\\"2024-09-24T09:55:19.6138019Z\\\",\\\"ModifiedDateTime\\\":\\\"2024-12-11T16:56:36.2304613Z\\\",\\\"TemplateId\\\":\\\"4200930c-0da2-4e33-ca02-100000000002\\\",\\\"State\\\":\\\"Disabled\\\",\\\"Conditions\\\":{\\\"Applications\\\":{\\\"Include\\\":[{\\\"Applications\\\":[\\\"All\\\"]}]},\\\"Users\\\":{\\\"Include\\\":[{\\\"Users\\\":[\\\"All\\\"]}],\\\"Exclude\\\":[{\\\"Users\\\":[\\\"3f35661a-fbe1-4e3a-b07c-1f0af8ad34a7\\\"]}]},\\\"UserRisks\\\":{\\\"Include\\\":[{\\\"UserRisks\\\":[\\\"High\\\"]}]}},\\\"Controls\\\":[{\\\"Control\\\":[\\\"MfaAndChangePassword\\\"]}],\\\"EnforceAllPoliciesForEas\\\":true,\\\"IncludeOtherLegacyClientTypeForEvaluation\\\":true}\"},{\"Name\":\"PolicyLastUpdatedTime\",\"Value\":\"3\\/2\\/2025 10:43:15 PM\"},{\"Name\":\"TenantDefaultPolicy\",\"Value\":\"\"},{\"Name\":\"DisplayName\",\"Value\":\"Secure password change on high user risk for Microsoft partners and vendors\"},{\"Name\":\"PolicyIdentifierString\",\"Value\":\"\"}],\"RequestId\":\"4b790c7c-9dbb-4365-9f86-9686a8081572\"}",
+        "ResultIndex":  2,
+        "ResultCount":  129,
+        "Identity":  "62a817b2-643f-4421-1d71-08dd59db9f37",
+        "IsValid":  true,
+        "ObjectState":  "Unchanged"
+    },
+    {
+        "RecordType":  "ExchangeAdmin",
+        "CreationDate":  "\/Date(1740955394000)\/",
+        "UserIds":  "NT SERVICE\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)",
+        "Operations":  "Set-ConditionalAccessPolicy",
+        "AuditData":  "{\"AppAccessContext\":{},\"CreationTime\":\"2025-03-02T22:43:14\",\"Id\":\"4ea69210-3f87-40e9-cdfe-08dd59db9e92\",\"Operation\":\"Set-ConditionalAccessPolicy\",\"OrganizationId\":\"70e7f470-ed25-47f5-aa2f-096f0f44c831\",\"RecordType\":1,\"ResultStatus\":\"True\",\"UserKey\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"UserType\":3,\"Version\":1,\"Workload\":\"Exchange\",\"ObjectId\":\"M365x44824121.onmicrosoft.com\\\\7e7de72d-da6e-451b-8eb5-8e824b82e73c\",\"UserId\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"AppId\":\"\",\"AppPoolName\":\"MSExchangeServiceHostNetCore\",\"ClientAppId\":\"\",\"CorrelationID\":\"\",\"ExternalAccess\":true,\"OrganizationName\":\"M365x44824121.onmicrosoft.com\",\"OriginatingServer\":\"LV1P223MB1280 (15.20.8489.024)\",\"Parameters\":[{\"Name\":\"Identity\",\"Value\":\"M365x44824121.onmicrosoft.com\\\\7e7de72d-da6e-451b-8eb5-8e824b82e73c\"},{\"Name\":\"PolicyDetails\",\"Value\":\"{\\\"Version\\\":1,\\\"CreatedDateTime\\\":\\\"2024-09-24T09:55:16.5434659Z\\\",\\\"ModifiedDateTime\\\":\\\"2025-02-14T18:08:11.8000513Z\\\",\\\"TemplateId\\\":\\\"4200930c-0da2-4e33-ca02-000000000004\\\",\\\"State\\\":\\\"Enabled\\\",\\\"Conditions\\\":{\\\"Applications\\\":{\\\"Include\\\":[{\\\"Applications\\\":[\\\"All\\\"]}]},\\\"Users\\\":{\\\"Include\\\":[{\\\"Users\\\":[\\\"All\\\"]}],\\\"Exclude\\\":[{\\\"Users\\\":[\\\"f8f6ae55-93c7-4af1-8408-3cfe661d543f\\\",\\\"be558ae1-bce6-427f-9030-e53fffb63260\\\",\\\"0cb87915-2520-4f16-8d6c-c31877bb65cb\\\",\\\"d680918f-516b-4a6a-9e0b-9c4ddc369ca7\\\",\\\"8ddf17ea-0571-4430-94c9-e4fa012a95ae\\\"]},{\\\"Roles\\\":[\\\"d29b2b05-8046-44ba-8758-1e26182fcf32\\\"]}]}},\\\"Controls\\\":[{\\\"Control\\\":[\\\"Mfa\\\"]}],\\\"EnforceAllPoliciesForEas\\\":true,\\\"IncludeOtherLegacyClientTypeForEvaluation\\\":true}\"},{\"Name\":\"PolicyLastUpdatedTime\",\"Value\":\"3\\/2\\/2025 10:43:13 PM\"},{\"Name\":\"TenantDefaultPolicy\",\"Value\":\"\"},{\"Name\":\"DisplayName\",\"Value\":\"Multifactor authentication for Microsoft partners and vendors\"},{\"Name\":\"PolicyIdentifierString\",\"Value\":\"\"}],\"RequestId\":\"4b790c7c-9dbb-4365-9f86-9686a8081572\"}",
+        "ResultIndex":  3,
+        "ResultCount":  129,
+        "Identity":  "4ea69210-3f87-40e9-cdfe-08dd59db9e92",
+        "IsValid":  true,
+        "ObjectState":  "Unchanged"
+    },
+    {
+        "RecordType":  "ExchangeAdmin",
+        "CreationDate":  "\/Date(1740955393000)\/",
+        "UserIds":  "NT SERVICE\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)",
+        "Operations":  "Set-ConditionalAccessPolicy",
+        "AuditData":  "{\"AppAccessContext\":{},\"CreationTime\":\"2025-03-02T22:43:13\",\"Id\":\"b89ed79b-8a8f-404c-efca-08dd59db9df4\",\"Operation\":\"Set-ConditionalAccessPolicy\",\"OrganizationId\":\"70e7f470-ed25-47f5-aa2f-096f0f44c831\",\"RecordType\":1,\"ResultStatus\":\"True\",\"UserKey\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"UserType\":3,\"Version\":1,\"Workload\":\"Exchange\",\"ObjectId\":\"M365x44824121.onmicrosoft.com\\\\35acd363-eef6-40bc-b876-d1c3334da18a\",\"UserId\":\"NT SERVICE\\\\MSExchangeServiceHostNetCore (Microsoft.Exchange.ServiceHost)\",\"AppId\":\"\",\"AppPoolName\":\"MSExchangeServiceHostNetCore\",\"ClientAppId\":\"\",\"CorrelationID\":\"\",\"ExternalAccess\":true,\"OrganizationName\":\"M365x44824121.onmicrosoft.com\",\"OriginatingServer\":\"LV1P223MB1280 (15.20.8489.024)\",\"Parameters\":[{\"Name\":\"Identity\",\"Value\":\"M365x44824121.onmicrosoft.com\\\\35acd363-eef6-40bc-b876-d1c3334da18a\"},{\"Name\":\"PolicyDetails\",\"Value\":\"{\\\"Version\\\":0,\\\"LastUpdatedTimestamp\\\":\\\"2024-09-18T05:59:31.4280637Z\\\",\\\"State\\\":\\\"Disabled\\\"}\"},{\"Name\":\"PolicyLastUpdatedTime\",\"Value\":\"3\\/2\\/2025 10:43:12 PM\"},{\"Name\":\"TenantDefaultPolicy\",\"Value\":\"18\"},{\"Name\":\"DisplayName\",\"Value\":\"Default Policy\"},{\"Name\":\"PolicyIdentifierString\",\"Value\":\"2\\/14\\/2025 6:08:12 PM\"}],\"RequestId\":\"4b790c7c-9dbb-4365-9f86-9686a8081572\"}",
+        "ResultIndex":  4,
+        "ResultCount":  129,
+        "Identity":  "b89ed79b-8a8f-404c-efca-08dd59db9df4",
+        "IsValid":  true,
+        "ObjectState":  "Unchanged"
+    }
+]
