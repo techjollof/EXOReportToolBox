@@ -505,54 +505,9 @@ $recordTypeFilter.Add_SelectionChanged({
     Update-TreeView
 })
 
-# Create a StackPanel to hold CheckBoxes inside the ComboBox
-$checkBoxPanel = New-Object System.Windows.Controls.StackPanel
-
-
-
-#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-
-
-# Add RecordType options with CheckBoxes
-$recordTypes = @("Type1", "Type2", "Type3", "Type4")  # Example RecordTypes
-foreach ($type in $recordTypes) {
-    $checkBox = New-Object System.Windows.Controls.CheckBox
-    $checkBox.Content = $type
-    $checkBox.Margin = "2"
-    $checkBox.Add_Checked({
-        Update-SelectedRecordTypes
-    })
-    $checkBox.Add_Unchecked({
-        Update-SelectedRecordTypes
-    })
-    $checkBoxPanel.Children.Add($checkBox)
-}
-
-# Add the StackPanel to the ComboBox
-$recordTypeFilter.Items.Add($checkBoxPanel)
-
-# Function to update the selected RecordTypes
-function Update-SelectedRecordTypes {
-    $selectedRecordTypes = $checkBoxPanel.Children | Where-Object { $_.IsChecked -eq $true } | ForEach-Object { $_.Content }
-    $recordTypeFilter.Text = $selectedRecordTypes -join ", "  # Display selected items in the ComboBox
-    Update-TreeView
-}
-
-#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-
-
-
-
-
-
-
-
-
 # Add Label and Dropdown to the RecordType Group
 $recordTypeGroup.Children.Add($recordTypeLabel)
 $recordTypeGroup.Children.Add($recordTypeFilter)
-
-
 
 # Group Operations Label and Dropdown
 $operationsGroup = New-Object System.Windows.Controls.StackPanel
@@ -574,6 +529,9 @@ $operationsFilter.Height = 25
 $operationsFilter.Margin = $uIMargin
 $operationsFilter.ToolTip = "Filter by Operations"
 $operationsFilter.FontSize = "14"
+$operationsFilter.IsEditable = $true  # Allow text input
+$operationsFilter.IsReadOnly = $true  # Prevent editing the text
+$operationsFilter.StaysOpenOnEdit = $true  # Keep dropdown open when clicking
 $operationsFilter.Add_SelectionChanged({
         Update-TreeView
     })
